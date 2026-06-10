@@ -65,7 +65,7 @@ export default function LoginPage() {
 
   function selectAccount(user: HarriettUser) {
     setUser(user);
-    router.push("/agent");
+    router.push("/onboarding");
   }
 
   function handleCreate() {
@@ -129,7 +129,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-3">
-                {DEMO_ACCOUNTS.filter((u) => u.id === "jerrod").map((user) => (
+                {DEMO_ACCOUNTS.filter((u) => u.id === "tanner").map((user) => (
                   <AccountCard key={user.id} user={user} onSelect={() => selectAccount(user)} />
                 ))}
               </div>

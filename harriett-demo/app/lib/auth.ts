@@ -10,6 +10,7 @@ export interface HarriettUser {
 
 export const DEMO_ACCOUNTS: HarriettUser[] = [
   { id: "wilson", name: "Wilson Moore", role: "broker", title: "President / Broker", initials: "WM" },
+  { id: "tanner", name: "Tanner Ashcraft", role: "agent", title: "Associate Broker", initials: "TA" },
   { id: "jerrod", name: "Jerrod Hastings", role: "agent", title: "Agent", initials: "JH" },
   { id: "alyssa", name: "Alyssa Tanner", role: "coordinator", title: "Real Estate Coordinator", initials: "AT" },
 ];

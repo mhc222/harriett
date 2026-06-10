@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUser, clearUser, type HarriettUser } from "../lib/auth";
 import { VENDORS, VENDOR_LABELS, type Vendor } from "../lib/demo-data";
-import type { DealFields } from "../lib/types";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -20,22 +19,22 @@ interface MemoryEntry {
 }
 
 const SUGGESTED = [
-  "What are the compliance flags for the Gordo deal?",
-  "Who are the sellers and what is their contact info?",
-  "What did the loan type change from and why does it matter?",
+  "Draft a Just Listed post for a 3BR/2BA in Northport.",
+  "What marketing materials can you help me create for a new listing?",
   "Walk me through the coordinator checklist for a pending sale.",
-  "What is Jerrod's commission on this deal?",
-  "What vendors does Harriett know about for this file?",
-  "What is the net to seller and how was it calculated?",
-  "What disclosures are required for this property?",
-  "Does Alabama require sellers to disclose defects?",
+  "What disclosures are required for a pre-1978 property in Alabama?",
+  "Draft a follow-up text to a buyer's agent after an accepted offer.",
   "What is the earnest money rule in Alabama?",
+  "Does Alabama require sellers to disclose defects?",
   "Who must handle the closing in Alabama?",
   "What changed with Act 2025-59?",
-  "Give me the full Gordo deal timeline with all key dates.",
-  "Was the lead paint window met for Gordo? When did it expire?",
-  "What did the FHA loan type change require and by when?",
-  "When did coordinator tasks need to happen after contract signed?",
+  "What vendors do I have set up for photography and inspections?",
+  "Help me write a listing description for a 4BR on the lake.",
+  "What forms does PM require an agent to initial before a file is accepted?",
+  "Draft a text to my client about their closing next week.",
+  "What is the lead-based paint disclosure rule?",
+  "What questions should I ask a seller at a listing appointment?",
+  "What are the FHA loan requirements I should know as a listing agent?",
 ];
 
 export default function AgentPage() {
@@ -44,9 +43,6 @@ export default function AgentPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [deal, setDeal] = useState<DealFields | null>(null);
-  const [parsing, setParsing] = useState(false);
-  const [parseError, setParseError] = useState<string | null>(null);
   const [autoSeeding, setAutoSeeding] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seeded, setSeeded] = useState(false);
@@ -69,7 +65,8 @@ export default function AgentPage() {
     setUser(u);
     if (!autoLoaded.current) {
       autoLoaded.current = true;
-      handleParse();
+      setAutoSeeding(true);
+      Promise.all([seedMemory(false), seedLaw(), seedTimeline()]).then(() => setAutoSeeding(false));
     }
   }, [router]);
 
@@ -147,54 +144,6 @@ export default function AgentPage() {
     }
   }
 
-  async function handleParse(file?: File) {
-    setParsing(true);
-    setParseError(null);
-    try {
-      let res: Response;
-      if (!file) {
-        res = await fetch("/api/parse", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ demoMode: true }),
-        });
-      } else {
-        const formData = new FormData();
-        formData.append("file", file);
-        res = await fetch("/api/parse", { method: "POST", body: formData });
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Parse failed");
-      setDeal(data);
-      setAutoSeeding(true);
-      await Promise.all([seedMemory(false), seedLaw(), seedTimeline()]);
-      setAutoSeeding(false);
-      await generateBriefing(data);
-    } catch (e) {
-      setParseError(e instanceof Error ? e.message : "Parse failed");
-    } finally {
-      setParsing(false);
-    }
-  }
-
-  async function generateBriefing(dealData: DealFields) {
-    setLoading(true);
-    const price = (dealData.salePrice ?? dealData.listPrice).toLocaleString();
-    const prompt = `I just uploaded the contract for ${dealData.address}, ${dealData.city}, ${dealData.state}. Give me a concise briefing: key parties (sellers, buyers, agents), important dates, compliance flags I need to know, and the top 3 action items for right now. Sale price $${price}. Be specific and direct.`;
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: prompt, history: [] }),
-      });
-      const data = await res.json();
-      setMessages([{ role: "assistant", content: data.answer, memoriesUsed: data.memoriesUsed }]);
-    } catch {
-      // briefing failed silently
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function sendToMe(type: "whatsapp" | "email", content: string, msgIndex: number) {
     setSendStates((s) => ({
@@ -205,7 +154,7 @@ export default function AgentPage() {
       const res = await fetch("/api/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, content, subject: `From Harriett — ${deal?.address ?? "your deal"}` }),
+        body: JSON.stringify({ type, content, subject: `From Harriett — ${user?.name ?? "Harriett"}` }),
       });
       const data = await res.json();
       setSendStates((s) => ({
@@ -268,46 +217,19 @@ export default function AgentPage() {
 
       <main className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto w-full px-4 py-5">
 
-        {/* Loading state */}
-        {parsing && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4"
-                style={{ borderColor: "var(--ink)", borderTopColor: "transparent" }} />
-              <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>Harriett is getting ready...</p>
-              <p className="text-xs mt-1" style={{ color: "var(--ink-mid)" }}>Loading your deal and memory</p>
-            </div>
-          </div>
-        )}
-
-        {/* Deal loaded — full UI */}
-        {deal && (
-        <>
-        {/* Deal context banner */}
+        {/* Agent profile banner */}
         <div className="rounded-xl border px-5 py-3.5 mb-4 flex items-center justify-between flex-shrink-0"
           style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
-          <div className="flex items-center gap-5">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--ink-light)" }}>Active Deal</p>
-              <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{deal.address}, {deal.city}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--ink-mid)" }}>
-                Sellers: {deal.sellers.join(", ")} &middot; Buyers: {deal.buyers.join(", ")} &middot; Closes {deal.closingDate} &middot; ${(deal.salePrice ?? deal.listPrice).toLocaleString()} {deal.loanType ?? ""}
-              </p>
+          <div className="flex items-center gap-4">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+              style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "var(--crimson)" }}>
+              {user?.initials ?? "TA"}
             </div>
-            <div className="hidden md:flex items-center gap-3">
-              {[
-                { label: "Agent", value: deal.listingAgent },
-                ...(deal.loanType ? [{ label: "Loan", value: deal.loanType }] : []),
-                ...(deal.flags.leadPaintDisclosure ? [{ label: "Flag", value: "Lead paint" }] : []),
-              ].map((item) => (
-                <div key={item.label} className="text-center px-4 border-l" style={{ borderColor: "var(--cream-border)" }}>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--ink-light)" }}>{item.label}</p>
-                  <p className="text-xs font-medium mt-0.5" style={{ color: item.label === "Flag" ? "var(--crimson)" : "var(--ink)" }}>{item.value}</p>
-                </div>
-              ))}
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{user?.name ?? "Tanner Ashcraft"}</p>
+              <p className="text-xs" style={{ color: "var(--ink-mid)" }}>{user?.title ?? "Associate Broker"} &middot; Pritchett-Moore Real Estate</p>
             </div>
           </div>
-
           <div className="flex items-center gap-3 flex-shrink-0">
             {autoSeeding ? (
               <div className="flex items-center gap-2">
@@ -315,18 +237,10 @@ export default function AgentPage() {
                 <span className="text-xs" style={{ color: "var(--ink-mid)" }}>Loading memory...</span>
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                {memories.length > 0 && (
-                  <div className="text-center">
-                    <p className="text-base font-bold leading-none" style={{ color: "#166534" }}>{memories.length}</p>
-                    <p className="text-[10px]" style={{ color: "var(--ink-light)" }}>memories</p>
-                  </div>
-                )}
-                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                  style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
-                  Memory ready
-                </span>
-              </div>
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
+                {memories.length > 0 ? `${memories.length} memories` : "Memory ready"}
+              </span>
             )}
           </div>
         </div>
@@ -358,10 +272,10 @@ export default function AgentPage() {
             <div className="grid gap-3 pb-4">
               {VENDORS.map((v) => (
                 <VendorCard key={v.id} vendor={v}
-                  dealAddress={deal?.address ?? ""}
-                  dealCity={deal?.city ?? ""}
-                  dealClosingDate={deal?.closingDate ?? ""}
-                  dealAgent={deal?.listingAgent ?? ""}
+                  dealAddress=""
+                  dealCity=""
+                  dealClosingDate=""
+                  dealAgent={user?.name ?? ""}
                   onSendMessage={async (content) => {
                     const res = await fetch("/api/send", {
                       method: "POST",
@@ -399,7 +313,7 @@ export default function AgentPage() {
               {messages.length === 0 ? (
                 <div className="p-5">
                   <p className="text-sm font-semibold mb-1" style={{ color: "var(--ink)" }}>
-                    Ask Harriett about the 604 Gordo deal.
+                    Ask Harriett anything.
                   </p>
                   <p className="text-xs mb-5" style={{ color: "var(--ink-mid)" }}>
                     {autoSeeding ? "Loading Harriett's memory..." : "Ask any question about the transaction, parties, compliance flags, or office procedures."}
@@ -504,7 +418,7 @@ export default function AgentPage() {
             <div className="flex gap-2 flex-shrink-0">
               <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder={autoSeeding ? "Loading memory..." : deal ? `Ask Harriett about ${deal.address}...` : "Ask Harriett..."}
+                placeholder={autoSeeding ? "Loading memory..." : "Ask Harriett..."}
                 disabled={loading}
                 className="flex-1 px-4 py-3 rounded-xl border text-sm outline-none transition-all"
                 style={{ background: "var(--surface)", borderColor: "var(--cream-border)", color: "var(--ink)" }}
@@ -518,8 +432,6 @@ export default function AgentPage() {
               </button>
             </div>
           </>
-        )}
-        </> /* end deal && */
         )}
       </main>
 
@@ -611,7 +523,7 @@ function VendorCard({ vendor, dealAddress, dealCity, dealClosingDate, dealAgent,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendor: { name: vendor.name, contact: vendor.contact, phone: vendor.phone, email: vendor.email, category: vendor.category },
-          deal: { address: "604 2nd St NW", city: "Gordo, AL 35466", closingDate: "Jun 5, 2026", agent: "Jerrod Hastings" },
+          deal: { address: dealAddress || "your next listing", city: dealCity || "Tuscaloosa, AL", closingDate: dealClosingDate || "", agent: dealAgent || "Tanner Ashcraft" },
           proposedDates: vendor.freeDates ?? [],
         }),
       });
