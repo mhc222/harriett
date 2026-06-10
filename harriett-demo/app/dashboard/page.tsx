@@ -474,7 +474,7 @@ function CoordTaskCard({ task, onDone }: { task: CoordTask; onDone: (id: string)
   );
 }
 
-// ─── VENDOR ROW ──────────────────────────────────────────────────────────────
+// ─── VENDOR CARD ─────────────────────────────────────────────────────────────
 
 const VENDOR_ICONS: Record<string, React.ReactNode> = {
   photographer: <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z"/></svg>,
@@ -487,32 +487,184 @@ const VENDOR_ICONS: Record<string, React.ReactNode> = {
   other:        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>,
 };
 
-function VendorRow({ vendor }: { vendor: Vendor }) {
+const SERVICE_SHORT: Record<string, string> = {
+  photographer: "Photos",
+  inspector:    "Inspection",
+  title:        "Closing",
+  appraiser:    "Appraisal",
+  deed:         "Deed prep",
+  other:        "Outreach",
+};
+
+interface VendorDealContext {
+  address: string;
+  city: string;
+  closingDate: string;
+  agent: string;
+}
+
+function VendorCard({ vendor, deal }: { vendor: Vendor; deal?: VendorDealContext }) {
+  const [open, setOpen] = useState(false);
   const [drafting, setDrafting] = useState(false);
-  const [drafted, setDrafted] = useState(false);
-  function draftOutreach() { setDrafting(true); setTimeout(() => { setDrafting(false); setDrafted(true); }, 1200); }
+  const [draft, setDraft] = useState<{ subject: string; draft: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function startDraft() {
+    setOpen(true);
+    setDrafting(true);
+    setDraft(null);
+    setErr(null);
+    try {
+      const res = await fetch("/api/vendor/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendor: { name: vendor.name, contact: vendor.contact, phone: vendor.phone, email: vendor.email, category: vendor.category },
+          deal: deal ?? { address: "2200 Academy Dr", city: "Tuscaloosa, AL", closingDate: "TBD", agent: "Jerrod Hastings" },
+          proposedDates: vendor.freeDates ?? [],
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setDraft(data);
+    } catch {
+      setErr("Could not draft outreach. Try again.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  function copyMessage() {
+    if (!draft) return;
+    navigator.clipboard.writeText(draft.draft);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function close() {
+    setOpen(false);
+    setDraft(null);
+    setErr(null);
+  }
+
   return (
-    <div className="flex items-center gap-3 px-4 py-3.5 border-b last:border-0" style={{ borderColor: "var(--cream-border)" }}>
-      <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: "var(--cream)", border: "1px solid var(--cream-border)", color: "var(--ink-mid)" }}>
-        {VENDOR_ICONS[vendor.category] ?? VENDOR_ICONS.other}
+    <div className="border-b last:border-0" style={{ borderColor: "var(--cream-border)" }}>
+      {/* Row */}
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+          style={{ background: "var(--cream)", border: "1px solid var(--cream-border)", color: "var(--ink-mid)" }}>
+          {VENDOR_ICONS[vendor.category] ?? VENDOR_ICONS.other}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold leading-tight" style={{ color: "var(--ink)" }}>{vendor.name}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--ink-mid)" }}>
+            {VENDOR_LABELS[vendor.category]} &middot; {vendor.contact} &middot; {vendor.phone}
+          </p>
+          {vendor.lastUsed && <p className="text-[10px] mt-0.5" style={{ color: "var(--ink-light)" }}>Last used {vendor.lastUsed}</p>}
+        </div>
+        {vendor.harriettCanContact && (
+          <button
+            onClick={open ? close : startDraft}
+            className="flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all active:scale-[0.98]"
+            style={draft
+              ? { background: "#F0FDF4", borderColor: "#BBF7D0", color: "#166534" }
+              : open
+              ? { background: "var(--ink)", borderColor: "var(--ink)", color: "var(--cream)" }
+              : { borderColor: "var(--cream-border)", color: "var(--ink-mid)", background: "transparent" }
+            }
+          >
+            {draft ? "Draft ready" : open ? "Close" : "Harriett outreach"}
+          </button>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold leading-tight" style={{ color: "var(--ink)" }}>{vendor.name}</p>
-        <p className="text-xs mt-0.5" style={{ color: "var(--ink-mid)" }}>
-          {VENDOR_LABELS[vendor.category]} &middot; {vendor.contact} &middot; {vendor.phone}
-        </p>
-        {vendor.lastUsed && <p className="text-[10px] mt-0.5" style={{ color: "var(--ink-light)" }}>Last used {vendor.lastUsed}</p>}
-      </div>
-      {vendor.harriettCanContact && (
-        <button onClick={draftOutreach} disabled={drafting || drafted}
-          className="flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all active:scale-[0.98] disabled:opacity-60"
-          style={drafted
-            ? { background: "#F0FDF4", borderColor: "#BBF7D0", color: "#166534" }
-            : { borderColor: "var(--cream-border)", color: "var(--ink-mid)", background: "transparent" }
-          }>
-          {drafting ? "Drafting..." : drafted ? "Draft ready" : "Harriett outreach"}
-        </button>
+
+      {/* Expanded scheduling panel */}
+      {open && (
+        <div className="mx-4 mb-4 rounded-xl border overflow-hidden"
+          style={{ background: "#FEFCFB", borderColor: "var(--cream-border)" }}>
+
+          {/* Context bar */}
+          <div className="px-4 py-2.5 border-b flex items-center justify-between gap-3"
+            style={{ borderColor: "var(--cream-border)", background: "var(--cream)" }}>
+            <p className="text-xs" style={{ color: "var(--ink-mid)" }}>
+              <span className="font-semibold" style={{ color: "var(--ink)" }}>
+                {deal?.address ?? "2200 Academy Dr"}
+              </span>
+              {deal?.closingDate && deal.closingDate !== "TBD" && (
+                <> &middot; Closing {deal.closingDate}</>
+              )}
+            </p>
+            <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+              style={{ background: "#F0F9FF", color: "#0369A1", border: "1px solid #BAE6FD" }}>
+              {SERVICE_SHORT[vendor.category] ?? "Outreach"}
+            </span>
+          </div>
+
+          {/* Proposed dates (shown before draft arrives) */}
+          {!draft && !drafting && vendor.freeDates && vendor.freeDates.length > 0 && (
+            <div className="px-4 py-3 border-b" style={{ borderColor: "var(--cream-border)" }}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--ink-light)" }}>
+                Proposing these dates
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {vendor.freeDates.map((d) => (
+                  <span key={d} className="text-xs px-2.5 py-1 rounded-full border font-medium"
+                    style={{ background: "#F0F9FF", borderColor: "#BAE6FD", color: "#0369A1" }}>
+                    {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Draft area */}
+          <div className="px-4 py-3">
+            {drafting && (
+              <div className="flex items-center gap-2 py-5 justify-center">
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: "var(--crimson)", animationDelay: "0ms" }} />
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: "var(--crimson)", animationDelay: "150ms" }} />
+                <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: "var(--crimson)", animationDelay: "300ms" }} />
+              </div>
+            )}
+
+            {err && (
+              <p className="text-xs py-2" style={{ color: "var(--crimson)" }}>{err}</p>
+            )}
+
+            {draft && (
+              <>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--ink-light)" }}>
+                  Subject
+                </p>
+                <p className="text-xs font-semibold mb-3 pb-3 border-b" style={{ color: "var(--ink)", borderColor: "var(--cream-border)" }}>
+                  {draft.subject}
+                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--ink-light)" }}>
+                  Message
+                </p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--ink-mid)" }}>
+                  {draft.draft}
+                </p>
+                <div className="flex items-center gap-2 mt-4 pt-3 border-t" style={{ borderColor: "var(--cream-border)" }}>
+                  <button onClick={copyMessage}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-all active:scale-[0.98]"
+                    style={copied
+                      ? { background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }
+                      : { background: "var(--ink)", color: "var(--cream)" }
+                    }>
+                    {copied ? "Copied" : "Copy message"}
+                  </button>
+                  <button onClick={close}
+                    className="text-xs px-3 py-1.5 rounded-lg border transition-all"
+                    style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
+                    Dismiss
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -842,7 +994,16 @@ function AgentView({ user }: { user: HarriettUser }) {
           {tab === "vendors" && (
             <>
               <div className="rounded-xl border overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
-                {VENDORS.filter((v) => v.agentId === "jerrod").map((v) => <VendorRow key={v.id} vendor={v} />)}
+                {VENDORS.filter((v) => v.agentId === "jerrod").map((v) => (
+                  <VendorCard
+                    key={v.id}
+                    vendor={v}
+                    deal={agentDeals[0]
+                      ? { address: agentDeals[0].address, city: agentDeals[0].city, closingDate: agentDeals[0].closingDate, agent: agentDeals[0].agent }
+                      : undefined
+                    }
+                  />
+                ))}
               </div>
               <p className="text-[11px] mt-2 px-1" style={{ color: "var(--ink-light)" }}>Vendor data is private to your account.</p>
             </>

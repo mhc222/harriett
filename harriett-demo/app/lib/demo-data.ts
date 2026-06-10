@@ -159,18 +159,20 @@ export interface Vendor {
   name: string;
   contact: string;
   phone: string;
+  email?: string;
   category: VendorCategory;
   agentId: string;
   harriettCanContact: boolean;
   lastUsed?: string;
+  freeDates?: string[];
 }
 
 export const VENDORS: Vendor[] = [
-  { id: "v1", name: "Mark Sutton Photography", contact: "Mark Sutton", phone: "(205) 544-2917", category: "photographer", agentId: "jerrod", harriettCanContact: true, lastUsed: "May 2026" },
-  { id: "v2", name: "Tier 1 Inspections", contact: "Dave Holt", phone: "(205) 339-8822", category: "inspector", agentId: "jerrod", harriettCanContact: true, lastUsed: "Apr 2026" },
-  { id: "v3", name: "North River Title, Inc.", contact: "Brittany Newton", phone: "(205) 345-5310", category: "title", agentId: "jerrod", harriettCanContact: true, lastUsed: "Jun 2026" },
+  { id: "v1", name: "Mark Sutton Photography", contact: "Mark Sutton", phone: "(205) 544-2917", email: "mark@suttonphotographyhoover.com", category: "photographer", agentId: "jerrod", harriettCanContact: true, lastUsed: "May 2026", freeDates: ["Fri Jun 13", "Mon Jun 16", "Wed Jun 18"] },
+  { id: "v2", name: "Tier 1 Inspections", contact: "Dave Holt", phone: "(205) 339-8822", email: "dave@tier1inspections.com", category: "inspector", agentId: "jerrod", harriettCanContact: true, lastUsed: "Apr 2026", freeDates: ["Tue Jun 17", "Thu Jun 19", "Fri Jun 20"] },
+  { id: "v3", name: "North River Title, Inc.", contact: "Brittany Newton", phone: "(205) 345-5310", email: "brittany@northrivertitle.com", category: "title", agentId: "jerrod", harriettCanContact: true, lastUsed: "Jun 2026", freeDates: ["Mon Jun 16", "Tue Jun 17"] },
   { id: "v4", name: "First Federal Bank ISAOA", contact: "Loan Team", phone: "(205) 752-1900", category: "lender", agentId: "jerrod", harriettCanContact: false, lastUsed: "Jun 2026" },
-  { id: "v5", name: "Randolph Appraisals, Inc.", contact: "Greg Randolph", phone: "(205) 391-4450", category: "appraiser", agentId: "jerrod", harriettCanContact: true, lastUsed: "Mar 2026" },
+  { id: "v5", name: "Randolph Appraisals, Inc.", contact: "Greg Randolph", phone: "(205) 391-4450", email: "greg@randolphappraisals.com", category: "appraiser", agentId: "jerrod", harriettCanContact: true, lastUsed: "Mar 2026", freeDates: ["Wed Jun 18", "Thu Jun 19", "Mon Jun 23"] },
   { id: "v6", name: "Orion 180 Insurance", contact: "James Orr", phone: "(205) 248-3311", category: "insurance", agentId: "jerrod", harriettCanContact: false },
 ];
 

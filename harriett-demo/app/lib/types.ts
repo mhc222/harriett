@@ -91,6 +91,11 @@ export interface CmaAnalysis {
   considerations: string[];
 }
 
+export interface VendorScheduleOutput {
+  subject: string;
+  draft: string;
+}
+
 export interface DemoMessage {
   id: string;
   deal_address: string;
