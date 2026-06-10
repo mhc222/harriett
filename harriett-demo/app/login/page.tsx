@@ -65,7 +65,8 @@ export default function LoginPage() {
 
   function selectAccount(user: HarriettUser) {
     setUser(user);
-    router.push("/onboarding");
+    const dest = localStorage.getItem("harriett_prefs") ? "/dashboard" : "/onboarding";
+    router.push(dest);
   }
 
   function handleCreate() {
@@ -80,7 +81,8 @@ export default function LoginPage() {
     };
     setTimeout(() => {
       setUser(newUser);
-      router.push("/onboarding");
+      const dest = localStorage.getItem("harriett_prefs") ? "/dashboard" : "/onboarding";
+      router.push(dest);
     }, 600);
   }
 
