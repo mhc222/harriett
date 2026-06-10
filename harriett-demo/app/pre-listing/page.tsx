@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import CmaSlides from "../components/CmaSlides";
+import AppSidebar from "../components/AppSidebar";
 import type { CmaInput, CmaComp, CmaAnalysis } from "../lib/types";
 
 const DEFAULT_COMPS: CmaComp[] = [
@@ -145,8 +145,8 @@ export default function PreListingPage() {
 
   if (stage === "generating") {
     return (
-      <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
-        <PreListingHeader />
+      <div className="min-h-[100dvh] flex" style={{ background: "var(--cream)" }}>
+        <AppSidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div
@@ -167,9 +167,9 @@ export default function PreListingPage() {
 
   if (stage === "slides" && analysis) {
     return (
-      <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
-        <PreListingHeader showBack={() => setStage("input")} />
-        <div className="flex-1 max-w-5xl mx-auto w-full px-4 md:px-6 py-8">
+      <div className="min-h-[100dvh] flex" style={{ background: "var(--cream)" }}>
+        <AppSidebar />
+        <div className="flex-1 overflow-y-auto px-4 md:px-6 py-8">
           <CmaSlides input={input} analysis={analysis} onBack={() => setStage("input")} />
         </div>
       </div>
@@ -177,8 +177,8 @@ export default function PreListingPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
-      <PreListingHeader />
+    <div className="min-h-[100dvh] flex" style={{ background: "var(--cream)" }}>
+      <AppSidebar />
       <div className="flex-1 max-w-3xl mx-auto w-full px-4 md:px-6 py-10">
         <div className="mb-8">
           <div className="flex items-start justify-between">
@@ -486,59 +486,3 @@ export default function PreListingPage() {
   );
 }
 
-function PreListingHeader({ showBack }: { showBack?: () => void }) {
-  return (
-    <header
-      className="px-6 py-3.5 flex-shrink-0 border-b"
-      style={{ background: "var(--ink)", borderColor: "#2C2820" }}
-    >
-      <div className="max-w-5xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <span
-            className="text-lg font-semibold tracking-tight"
-            style={{ fontFamily: "var(--font-playfair)", color: "#F5F0E8" }}
-          >
-            Harriett<span style={{ color: "var(--crimson)" }}>.</span>
-          </span>
-          <nav className="hidden md:flex items-center gap-5">
-            {[
-              { label: "Dashboard",       href: "/dashboard" },
-              { label: "Calendar",        href: "/calendar" },
-              { label: "Transaction",     href: "/demo" },
-              { label: "Pre-Listing CMA", href: "/pre-listing", active: true },
-              { label: "Ask Harriett",    href: "/agent" },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="text-sm transition-colors"
-                style={{ color: item.active ? "#D4CFC8" : "#6B6358", fontWeight: item.active ? 500 : 400 }}
-                onMouseEnter={(e) => !item.active && (e.currentTarget.style.color = "#D4CFC8")}
-                onMouseLeave={(e) => !item.active && (e.currentTarget.style.color = "#6B6358")}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        {showBack && (
-          <button
-            onClick={showBack}
-            className="text-sm px-3 py-1.5 rounded-lg border transition-colors"
-            style={{ color: "#9C9189", borderColor: "#3A342C" }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#F5F0E8";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#6B635A";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#9C9189";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A342C";
-            }}
-          >
-            Edit inputs
-          </button>
-        )}
-      </div>
-    </header>
-  );
-}

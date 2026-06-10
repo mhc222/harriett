@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import UploadZone from "../components/UploadZone";
 import HarriettOutput from "../components/HarriettOutput";
+import AppSidebar from "../components/AppSidebar";
 import type { DealFields } from "../lib/types";
 
 type Stage = "upload" | "parsing" | "ready";
@@ -85,54 +86,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
-      <header className="px-6 py-3.5 flex-shrink-0 border-b" style={{ background: "var(--ink)", borderColor: "#2C2820" }}>
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span
-              className="text-lg font-semibold tracking-tight"
-              style={{ fontFamily: "var(--font-playfair)", color: "#F5F0E8" }}
-            >
-              Harriett<span style={{ color: "var(--crimson)" }}>.</span>
-            </span>
-            <span className="text-sm hidden sm:block" style={{ color: "#6B6358" }}>Pritchett-Moore Real Estate</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <nav className="hidden md:flex gap-5 text-sm">
-              <a href="/dashboard" className="transition-colors" style={{ color: "#6B6358" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
-              >Dashboard</a>
-              <a href="/calendar" className="transition-colors" style={{ color: "#6B6358" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
-              >Calendar</a>
-              <span className="font-medium" style={{ color: "#D4CFC8" }}>Transaction</span>
-              <a href="/pre-listing" className="transition-colors" style={{ color: "#6B6358" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
-              >Pre-Listing CMA</a>
-              <a href="/agent" className="transition-colors" style={{ color: "#6B6358" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
-              >Ask Harriett</a>
-            </nav>
-            <button
-              onClick={reset}
-              className="text-sm px-3 py-1.5 rounded-lg transition-colors border"
-              style={{
-                color: "#9C9189",
-                borderColor: "#3A342C",
-                visibility: stage === "ready" && deal ? "visible" : "hidden",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#F5F0E8"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#6B635A"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9C9189"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A342C"; }}
-            >
-              New transaction
-            </button>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-[100dvh] flex" style={{ background: "var(--cream)" }}>
+      <AppSidebar />
 
       <main className="flex-1 flex flex-col relative">
         {stage === "upload" && (

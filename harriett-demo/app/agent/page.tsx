@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUser, clearUser, type HarriettUser } from "../lib/auth";
+import AppSidebar from "../components/AppSidebar";
 import { VENDORS, VENDOR_LABELS, type Vendor } from "../lib/demo-data";
 
 interface ChatMessage {
@@ -165,52 +165,10 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
-      {/* Nav */}
-      <header className="px-6 py-3.5 flex-shrink-0 border-b" style={{ background: "var(--ink)", borderColor: "#2C2820" }}>
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <span className="text-lg font-semibold tracking-tight" style={{ fontFamily: "var(--font-playfair)", color: "#F5F0E8" }}>
-              Harriett<span style={{ color: "var(--crimson)" }}>.</span>
-            </span>
-            <nav className="hidden md:flex items-center gap-5">
-              {[
-                { label: "Dashboard",       href: "/dashboard" },
-                { label: "Calendar",        href: "/calendar" },
-                { label: "Transaction",     href: "/demo" },
-                { label: "Pre-Listing CMA", href: "/pre-listing" },
-                { label: "Ask Harriett",    href: "/agent", active: true },
-              ].map((item) => (
-                <Link key={item.href} href={item.href} className="text-sm transition-colors"
-                  style={{ color: item.active ? "#D4CFC8" : "#9C9189", fontWeight: item.active ? 500 : 400 }}
-                  onMouseEnter={(e) => !item.active && (e.currentTarget.style.color = "#D4CFC8")}
-                  onMouseLeave={(e) => !item.active && (e.currentTarget.style.color = "#9C9189")}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          {user && (
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-xs font-medium" style={{ color: "#D4CFC8" }}>{user.name}</p>
-                <p className="text-[10px] capitalize" style={{ color: "#6B6358" }}>{user.role}</p>
-              </div>
-              <button onClick={() => { clearUser(); router.push("/"); }}
-                className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
-                style={{ borderColor: "#3A342C", color: "#6B6358" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#D4CFC8"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#6B635A"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6B6358"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A342C"; }}
-              >
-                Sign out
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
+    <div className="min-h-[100dvh] flex" style={{ background: "var(--cream)" }}>
+      <AppSidebar />
 
-      <main className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto w-full px-4 py-5">
+      <main className="flex-1 min-h-0 flex flex-col px-4 py-5 overflow-y-auto">
 
         {/* Agent profile banner */}
         <div className="rounded-xl border px-5 py-3.5 mb-4 flex items-center justify-between flex-shrink-0"
