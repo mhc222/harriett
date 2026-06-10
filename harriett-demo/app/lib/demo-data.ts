@@ -48,107 +48,19 @@ export interface PreListingItem {
 
 // ── DEALS ────────────────────────────────────────────────────────────────────
 
-export const DEALS: Deal[] = [
-  {
-    id: "univ-1842",
-    address: "1842 University Blvd",
-    city: "Tuscaloosa, AL 35401",
-    agent: "Sarah Kimball",
-    price: 385000,
-    loanType: "Conventional",
-    listingDate: "May 10, 2026",
-    closingDate: "Jul 20, 2026",
-    stage: "listing-active",
-    urgentFlags: [],
-    checklist: { completed: 7, total: 14 },
-    lastActivity: "1 day ago",
-    mlsNumber: "PM-2026-0510",
-    photosUploaded: true,
-    mlsEntered: true,
-    folderLabel: "blue",
-    postcardSent: true,
-  },
-  {
-    id: "mcf-3310",
-    address: "3310 McFarland Blvd #14",
-    city: "Tuscaloosa, AL 35405",
-    agent: "Marcus Webb",
-    price: 142500,
-    loanType: "Cash",
-    listingDate: "Apr 2, 2026",
-    closingDate: "Jul 8, 2026",
-    stage: "closing",
-    urgentFlags: [],
-    checklist: { completed: 11, total: 14 },
-    lastActivity: "3 hours ago",
-    mlsNumber: "PM-2026-0402",
-    photosUploaded: true,
-    mlsEntered: true,
-    folderLabel: "white",
-    postcardSent: false,
-  },
-  {
-    id: "forest-914",
-    address: "914 Forest Lake Dr",
-    city: "Tuscaloosa, AL 35405",
-    agent: "Sarah Kimball",
-    price: 319000,
-    loanType: "VA",
-    listingDate: "Jun 1, 2026",
-    closingDate: "Jul 30, 2026",
-    stage: "listing-active",
-    urgentFlags: [],
-    checklist: { completed: 2, total: 14 },
-    lastActivity: "4 hours ago",
-    mlsNumber: "PM-2026-0601",
-    photosUploaded: false,
-    mlsEntered: false,
-    folderLabel: null,
-    postcardSent: false,
-  },
-];
+export const DEALS: Deal[] = [];
 
 // ── APPROVAL QUEUE ───────────────────────────────────────────────────────────
 
-export const APPROVAL_QUEUE: ApprovalItem[] = [
-  {
-    id: "aq1",
-    dealId: "deal-gordo",
-    address: "604 2nd St NW, Gordo AL",
-    toAgent: "Jerrod Hastings",
-    preview: "Jerrod — contract is in. Closing is set for Jun 5. Lead paint inspection window opens today — buyer has 10 days. FHA amendatory clause is required; confirm with First Federal that it's been signed. I'll track the timeline from here.",
-    draftedAt: "2026-06-08T09:14:00Z",
-    urgentFlags: ["Lead paint 10-day window starts today", "FHA amendatory clause required"],
-  },
-];
+export const APPROVAL_QUEUE: ApprovalItem[] = [];
 
 // ── ACTIVITY ─────────────────────────────────────────────────────────────────
 
-export const ACTIVITY: ActivityItem[] = [
-  { id: "a6", text: "Photos uploaded — 914 Forest Lake Dr", sub: "Sarah Kimball · 18 photos received", timeAgo: "4 hrs ago", type: "mls" },
-  { id: "a7", text: "MLS entry pending — 914 Forest Lake Dr", sub: "Alyssa notified, photos in queue", timeAgo: "4 hrs ago", type: "checklist" },
-  { id: "a8", text: "Closing prep started — 3310 McFarland Blvd", sub: "Marcus Webb · Jul 8 closing", timeAgo: "1 day ago", type: "checklist" },
-  { id: "a9", text: "Inspection deadline flagged", sub: "1842 University Blvd · Jun 20 contingency", timeAgo: "1 day ago", type: "flag" },
-];
+export const ACTIVITY: ActivityItem[] = [];
 
 // ── PRE-LISTING ──────────────────────────────────────────────────────────────
 
-export const PRE_LISTING: PreListingItem[] = [
-  {
-    id: "pl-001",
-    agent: "Jerrod Hastings",
-    address: "2200 Academy Dr, Tuscaloosa",
-    appointmentDate: "Thu Jun 12",
-    status: "cma-ready",
-  },
-  {
-    id: "pl-002",
-    agent: "Sarah Kimball",
-    address: "814 Hargrove Rd E, Tuscaloosa",
-    appointmentDate: "Mon Jun 16",
-    status: "cma-requested",
-  },
-];
+export const PRE_LISTING: PreListingItem[] = [];
 
 // ── VENDOR DIRECTORY ─────────────────────────────────────────────────────────
 
@@ -204,21 +116,7 @@ export interface CalendarEvent {
   note?: string;
 }
 
-export const CALENDAR_EVENTS: CalendarEvent[] = [
-  // June 2026
-  { id: "ce1", date: "2026-06-12", title: "Listing appointment", type: "appointment", address: "2200 Academy Dr, Tuscaloosa", agent: "Jerrod Hastings" },
-  { id: "ce2", date: "2026-06-15", title: "Photos due", type: "deadline", address: "914 Forest Lake Dr", agent: "Sarah Kimball", dealId: "forest-914", note: "MLS entry blocked — Sarah sends photos to Alyssa" },
-  { id: "ce3", date: "2026-06-16", title: "Listing appointment", type: "appointment", address: "814 Hargrove Rd E, Tuscaloosa", agent: "Sarah Kimball" },
-  { id: "ce4", date: "2026-06-20", title: "Inspection contingency deadline", type: "inspection", address: "1842 University Blvd", agent: "Sarah Kimball", dealId: "univ-1842" },
-  { id: "ce6", date: "2026-06-25", title: "Loan commitment deadline", type: "deadline", address: "1842 University Blvd", agent: "Sarah Kimball", dealId: "univ-1842" },
-  // July 2026
-  { id: "ce7", date: "2026-07-05", title: "Final walkthrough", type: "inspection", address: "3310 McFarland Blvd #14", agent: "Marcus Webb", dealId: "mcf-3310" },
-  { id: "ce8", date: "2026-07-08", title: "Closing", type: "closing", address: "3310 McFarland Blvd #14", agent: "Marcus Webb", dealId: "mcf-3310", note: "Cash. North River Title / Brittany Newton." },
-  { id: "ce9", date: "2026-07-18", title: "Final walkthrough", type: "inspection", address: "1842 University Blvd", agent: "Sarah Kimball", dealId: "univ-1842" },
-  { id: "ce10", date: "2026-07-20", title: "Closing", type: "closing", address: "1842 University Blvd", agent: "Sarah Kimball", dealId: "univ-1842", note: "Conventional. $385,000." },
-  { id: "ce11", date: "2026-07-28", title: "Final walkthrough", type: "inspection", address: "914 Forest Lake Dr", agent: "Sarah Kimball", dealId: "forest-914" },
-  { id: "ce12", date: "2026-07-30", title: "Closing", type: "closing", address: "914 Forest Lake Dr", agent: "Sarah Kimball", dealId: "forest-914", note: "VA loan. $319,000." },
-];
+export const CALENDAR_EVENTS: CalendarEvent[] = [];
 
 // ── NOTIFICATIONS ─────────────────────────────────────────────────────────────
 
@@ -231,11 +129,7 @@ export interface AppNotification {
   read: boolean;
 }
 
-export const NOTIFICATIONS: AppNotification[] = [
-  { id: "n4", text: "CMA ready for review", sub: "2200 Academy Dr — Jerrod's listing appointment Jun 12", timeAgo: "4 hrs ago", type: "info", read: false },
-  { id: "n5", text: "Photos still missing", sub: "914 Forest Lake Dr — MLS entry blocked", timeAgo: "5 hrs ago", type: "flag", read: false },
-  { id: "n6", text: "Inspection deadline approaching", sub: "1842 University Blvd — Jun 20 contingency", timeAgo: "1 day ago", type: "flag", read: true },
-];
+export const NOTIFICATIONS: AppNotification[] = [];
 
 // ── TODOS ─────────────────────────────────────────────────────────────────────
 
@@ -247,14 +141,7 @@ export interface TodoItem {
   roleFor: "broker" | "agent" | "coordinator";
 }
 
-export const TODOS: TodoItem[] = [
-  { id: "t2", text: "Review CMA before Jerrod's appointment", sub: "2200 Academy Dr — Thursday Jun 12", urgent: true, roleFor: "broker" },
-  { id: "t7", text: "Review inspection contingency — 1842 University Blvd", sub: "Sarah Kimball · deadline Jun 20", urgent: false, roleFor: "broker" },
-  { id: "t3", text: "Send photos to Alyssa — 914 Forest Lake Dr", sub: "MLS entry blocked until received", urgent: true, roleFor: "agent" },
-  { id: "t4", text: "Confirm inspection booked — 1842 University Blvd", sub: "Contingency deadline Jun 20", urgent: false, roleFor: "agent" },
-  { id: "t8", text: "Make blue folder label — 914 Forest Lake Dr", sub: "Add to physical file once MLS entered", urgent: false, roleFor: "coordinator" },
-  { id: "t9", text: "Send Just Sold postcard — 3310 McFarland Blvd", sub: "Email confirmation to Marcus, cc Gail", urgent: false, roleFor: "coordinator" },
-];
+export const TODOS: TodoItem[] = [];
 
 // ── COORDINATOR TASKS ────────────────────────────────────────────────────────
 
@@ -268,10 +155,4 @@ export interface CoordTask {
   urgent: boolean;
 }
 
-export const COORD_TASKS: CoordTask[] = [
-  { id: "ct2", dealId: "forest-914", address: "914 Forest Lake Dr", agent: "Sarah Kimball", task: "Receive and upload photos from Sarah", type: "photos", urgent: true },
-  { id: "ct3", dealId: "forest-914", address: "914 Forest Lake Dr", agent: "Sarah Kimball", task: "Enter listing in MLS with photos — convert provisional to active", type: "mls", urgent: true },
-  { id: "ct4", dealId: "forest-914", address: "914 Forest Lake Dr", agent: "Sarah Kimball", task: "Make blue folder label — add to physical file", type: "folder", urgent: false },
-  { id: "ct5", dealId: "mcf-3310", address: "3310 McFarland Blvd #14", agent: "Marcus Webb", task: "Send Just Sold postcard — email confirmation to Marcus", type: "postcard", urgent: false },
-  { id: "ct6", dealId: "mcf-3310", address: "3310 McFarland Blvd #14", agent: "Marcus Webb", task: "Load HUD/settlement statement into Instanet", type: "checklist", urgent: false },
-];
+export const COORD_TASKS: CoordTask[] = [];
