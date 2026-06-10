@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getUser, clearUser, type HarriettUser } from "../lib/auth";
 import {
   DEALS, APPROVAL_QUEUE, ACTIVITY, PRE_LISTING, COORD_TASKS, VENDORS, VENDOR_LABELS,
-  NOTIFICATIONS, TODOS,
+  NOTIFICATIONS, TODOS, CALENDAR_EVENTS,
   type Deal, type ApprovalItem, type CoordTask, type Vendor, type AppNotification,
   type TodoItem, type ActivityItem,
 } from "../lib/demo-data";
@@ -201,14 +201,14 @@ function DealTable({ deals, showAgent }: { deals: Deal[]; showAgent?: boolean })
 
   if (deals.length === 0) {
     return (
-      <div className="rounded-xl border p-8 text-center" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
-        <p className="text-sm font-medium mb-1" style={{ color: "var(--ink)" }}>No active deals.</p>
-        <p className="text-xs mb-4" style={{ color: "var(--ink-mid)" }}>Upload a contract in the Transaction tool to get started.</p>
-        <Link href="/demo"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-2 rounded-lg transition-all active:scale-[0.98]"
-          style={{ background: "var(--ink)", color: "var(--cream)" }}>
-          Open Transaction tool
-        </Link>
+      <div className="rounded-xl border px-8 py-10 text-center" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
+        <svg className="w-8 h-8 mx-auto mb-4 opacity-25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1} style={{ color: "var(--ink)" }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+        </svg>
+        <p className="text-sm font-semibold mb-1.5" style={{ color: "var(--ink)" }}>I&apos;m watching your inbox.</p>
+        <p className="text-xs leading-relaxed max-w-xs mx-auto" style={{ color: "var(--ink-mid)" }}>
+          When a new listing or contract comes in, I&apos;ll be on it. You can also upload a contract from the Transaction tool or kick off a Pre-Listing CMA from the nav above.
+        </p>
       </div>
     );
   }
@@ -807,7 +807,7 @@ function UrgencySection({
     harriett: { bg: "var(--cream)", border: "var(--cream-border)", label: "var(--ink-mid)", prefix: "" },
   }[variant];
 
-  if (count === 0 && variant !== "harriett") return null;
+  if (count === 0) return null;
 
   return (
     <div className="border-b px-4 py-3.5" style={{ borderColor: styles.border, background: variant === "overdue" || variant === "today" ? styles.bg : "transparent" }}>
@@ -942,6 +942,81 @@ function RightTabs({ tabs, active, onSelect }: {
   );
 }
 
+// ─── CALENDAR STRIP ──────────────────────────────────────────────────────────
+
+const EVENT_TYPE_STYLES: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  closing:     { bg: "#F0FDF4", text: "#166534", border: "#BBF7D0", label: "Closing" },
+  inspection:  { bg: "#F0F9FF", text: "#0369A1", border: "#BAE6FD", label: "Inspection" },
+  deadline:    { bg: "#FFFBEB", text: "#B45309", border: "#FDE68A", label: "Deadline" },
+  appointment: { bg: "#FAF5FF", text: "#7E22CE", border: "#E9D5FF", label: "Appointment" },
+  listing:     { bg: "var(--cream)", text: "var(--ink-mid)", border: "var(--cream-border)", label: "Listing" },
+};
+
+function CalendarStrip({ agentName }: { agentName: string }) {
+  const today = new Date().toISOString().split("T")[0];
+  const upcoming = CALENDAR_EVENTS
+    .filter((e) => e.date >= today && (agentName === "all" || e.agent === agentName))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 5);
+
+  const fmt = (d: string) => {
+    const [, m, day] = d.split("-");
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${months[parseInt(m) - 1]} ${parseInt(day)}`;
+  };
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--ink)" }}>Upcoming</p>
+        <Link href="/calendar" className="text-[11px] font-medium transition-colors"
+          style={{ color: "var(--ink-light)" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink-mid)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-light)")}>
+          Full calendar →
+        </Link>
+      </div>
+
+      {upcoming.length === 0 ? (
+        <div className="rounded-xl border px-5 py-6 text-center" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
+          <p className="text-xs" style={{ color: "var(--ink-mid)" }}>Nothing on the calendar yet. Closings and deadlines from active deals will appear here.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
+          {upcoming.map((event, i) => {
+            const s = EVENT_TYPE_STYLES[event.type] ?? EVENT_TYPE_STYLES.listing;
+            return (
+              <div key={event.id}
+                className={`flex items-start gap-4 px-4 py-3 ${i < upcoming.length - 1 ? "border-b" : ""}`}
+                style={{ borderColor: "var(--cream-border)" }}>
+                <div className="text-center flex-shrink-0 w-10">
+                  <p className="text-[10px] font-bold uppercase tracking-wide leading-none" style={{ color: "var(--ink-light)" }}>
+                    {fmt(event.date).split(" ")[0]}
+                  </p>
+                  <p className="text-lg font-bold leading-tight" style={{ color: "var(--ink)", fontFamily: "var(--font-playfair)" }}>
+                    {fmt(event.date).split(" ")[1]}
+                  </p>
+                </div>
+                <div className="flex-1 min-w-0 pt-0.5">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-semibold truncate" style={{ color: "var(--ink)" }}>{event.title}</p>
+                    <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border"
+                      style={{ background: s.bg, color: s.text, borderColor: s.border }}>
+                      {s.label}
+                    </span>
+                  </div>
+                  <p className="text-xs truncate" style={{ color: "var(--ink-mid)" }}>{event.address}</p>
+                  {event.note && <p className="text-[11px] mt-0.5 truncate" style={{ color: "var(--ink-light)" }}>{event.note}</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── AGENT VIEW ──────────────────────────────────────────────────────────────
 
 function AgentView({ user }: { user: HarriettUser }) {
@@ -955,10 +1030,7 @@ function AgentView({ user }: { user: HarriettUser }) {
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address}` }));
 
-  const ctas: CtaItem[] = [
-    { label: "+ I have a listing", href: "/demo",        primary: true },
-    { label: "Build a CMA",        href: "/pre-listing", primary: false },
-  ];
+  const ctas: CtaItem[] = [];
 
   const tabs = [
     { key: "deals",       label: "Deals",       count: agentDeals.length },
@@ -988,6 +1060,7 @@ function AgentView({ user }: { user: HarriettUser }) {
             <>
               <DeadlineChips deals={agentDeals} />
               <DealTable deals={agentDeals} />
+              <CalendarStrip agentName={user.name} />
             </>
           )}
           {tab === "pre-listing" && <PreListingList items={myPreListing} />}
