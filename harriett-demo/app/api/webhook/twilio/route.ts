@@ -21,7 +21,9 @@ Rules:
 - If something is outside your memory, say so clearly.
 - No em dashes. Use commas, semicolons, or sentence breaks.
 - Plain English. No jargon.
-- Sign off as "Harriett" when closing a reply.`;
+- Sign off as "Harriett" when closing a reply.
+- You can send calendar invites for closings, inspections, photo shoots, and any deal milestone. When you do, say "I've sent a calendar invite to your email" in your reply.
+- If the agent asks you to send a calendar invite or schedule something, include EXACTLY this tag at the end of your response on its own line: [SEND_INVITE:eventType|address|YYYY-MM-DD] — e.g. [SEND_INVITE:Closing|604 2nd St NW Gordo AL|2026-06-05]`;
 
 function twiml(body: string): NextResponse {
   const xml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(body)}</Message></Response>`;
@@ -83,7 +85,21 @@ export async function POST(req: NextRequest) {
       messages: [{ role: "user", content: userMessage }],
     });
 
-    const answer = (response.content[0] as Anthropic.TextBlock).text;
+    let answer = (response.content[0] as Anthropic.TextBlock).text;
+
+    // Parse and fire any calendar invite tag Harriett embedded in her reply
+    const inviteMatch = answer.match(/\[SEND_INVITE:([^|]+)\|([^|]+)\|(\d{4}-\d{2}-\d{2})\]/);
+    if (inviteMatch) {
+      answer = answer.replace(inviteMatch[0], "").trim();
+      const [, eventType, address, date] = inviteMatch;
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://harriett-demo.vercel.app";
+      // Fire and forget — don't block the WhatsApp reply
+      fetch(`${baseUrl}/api/calendar/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: from.replace("whatsapp:", ""), eventType, address, date }),
+      }).catch((e) => console.error("[twilio] invite send failed:", e));
+    }
 
     // Save outbound reply + distill exchange into Mem0
     await Promise.all([

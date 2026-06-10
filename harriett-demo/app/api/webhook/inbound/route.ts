@@ -2,7 +2,12 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { callClaudeWithPdf } from "@/app/lib/claude";
 import { PARSE_SYSTEM } from "@/app/lib/prompts";
 import { getSupabaseServer } from "@/app/lib/supabase";
+import { seedDealMemory } from "@/app/lib/mem0";
 import type { DealFields } from "@/app/lib/types";
+
+const OFFICE_ID = "00000000-0000-0000-0000-000000000001";
+const AGENT_ID  = "00000000-0000-0000-0001-000000000002"; // Jerrod — Phase 2: derive from email match
+const USER_ID   = "jerrod-hastings";
 
 export const maxDuration = 60;
 
@@ -153,7 +158,112 @@ async function processAndFollowUp(
   }
 
   const replySubject = deal.address ? `Re: ${deal.address}` : `Re: ${subject || "Your document"}`;
-  await sendEmail(from, replySubject, formatDealSummary(deal));
+  const summary = formatDealSummary(deal);
+
+  // Compute all dated milestones from deal data + Alabama rules
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://harriett-demo.vercel.app";
+
+  function addDays(dateStr: string, days: number): string {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(y, m - 1, d + days);
+    return [
+      dt.getFullYear(),
+      String(dt.getMonth() + 1).padStart(2, "0"),
+      String(dt.getDate()).padStart(2, "0"),
+    ].join("-");
+  }
+
+  function sendInvite(payload: object) {
+    return fetch(`${baseUrl}/api/calendar/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to: from, toName: fromName, ...payload }),
+    });
+  }
+
+  const milestones: Promise<unknown>[] = [];
+  const price = `$${(deal.salePrice ?? deal.listPrice)?.toLocaleString() ?? "TBD"}`;
+
+  if (deal.closingDate) {
+    // Closing
+    milestones.push(sendInvite({
+      eventType: "Closing",
+      address: deal.address,
+      date: deal.closingDate,
+      description: `Closing for ${deal.address}. Sale price: ${price}. Sellers: ${deal.sellers.join(", ")}. Buyers: ${deal.buyers.join(", ")}. Loan type: ${deal.loanType ?? "unknown"}. Coordinated by Harriett.`,
+      location: deal.address,
+    }));
+
+    // Final walkthrough: 1 day before closing
+    milestones.push(sendInvite({
+      eventType: "Final Walkthrough",
+      address: deal.address,
+      date: addDays(deal.closingDate, -1),
+      description: `Final walkthrough window for ${deal.address} — verify condition before closing on ${deal.closingDate}. Alabama buyer-beware: buyer arranges and attends.`,
+      location: deal.address,
+    }));
+  }
+
+  // Lead paint inspection: federal 10-day window from contract (use listingDate as proxy)
+  if (deal.flags.leadPaintDisclosure && deal.listingDate) {
+    const lpEnd = addDays(deal.listingDate, 10);
+    milestones.push(sendInvite({
+      eventType: "Lead Paint Inspection Deadline",
+      address: deal.address,
+      date: deal.listingDate,
+      endDate: lpEnd,
+      description: `Federal 10-day lead paint inspection window for ${deal.address} (pre-1978 property). Buyer's right to inspect and negotiate expires ${lpEnd}. Disclosure already executed.`,
+    }));
+  }
+
+  // Loan commitment: ~21 days from listing date (estimated — confirm with lender)
+  if (
+    deal.listingDate &&
+    deal.loanType &&
+    !deal.loanType.toLowerCase().includes("cash")
+  ) {
+    milestones.push(sendInvite({
+      eventType: "Loan Commitment Deadline",
+      address: deal.address,
+      date: addDays(deal.listingDate, 21),
+      description: `Estimated loan commitment deadline — ${deal.loanType} loan for ${deal.address}. Confirm exact date with lender: ${deal.loanType.toUpperCase().includes("FHA") ? "First Federal Bank ISAOA" : "lender on file"}. Harriett will flag if not received.`,
+    }));
+  }
+
+  // FHA Amendatory Clause re-execution reminder (if loan type changed)
+  if (deal.flags.loanTypeChanged && deal.listingDate) {
+    milestones.push(sendInvite({
+      eventType: "FHA Amendatory Clause — Re-execute",
+      address: deal.address,
+      date: addDays(deal.listingDate, 1),
+      description: `Loan type changed to FHA mid-transaction for ${deal.address}. FHA Amendatory Clause must be re-executed by all parties. Confirm with title company before closing.`,
+    }));
+  }
+
+  const sb2 = getSupabaseServer();
+  await Promise.all([
+    sendEmail(from, replySubject, summary),
+    seedDealMemory(deal, USER_ID),
+    ...milestones,
+    sb2.from("messages").insert({
+      office_id:       OFFICE_ID,
+      agent_id:        AGENT_ID,
+      direction:       "inbound",
+      channel:         "email",
+      body:            `[PDF: ${pdfName}] ${subject}`,
+      status:          "approved",
+      harriett_action: "email_contract_received",
+    }),
+    sb2.from("messages").insert({
+      office_id:       OFFICE_ID,
+      agent_id:        AGENT_ID,
+      direction:       "outbound",
+      channel:         "email",
+      body:            summary,
+      status:          "sent",
+      harriett_action: "email_deal_summary",
+    }),
+  ]);
 }
 
 export async function POST(req: NextRequest) {
