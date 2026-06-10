@@ -48,7 +48,6 @@ export default function AgentPage() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [autoSeeding, setAutoSeeding] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [seeding, setSeeding] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const [seedingLaw, setSeedingLaw] = useState(false);
@@ -63,10 +62,15 @@ export default function AgentPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const autoLoaded = useRef(false);
   useEffect(() => {
     const u = getUser();
     if (!u) { router.push("/login"); return; }
     setUser(u);
+    if (!autoLoaded.current) {
+      autoLoaded.current = true;
+      handleParse();
+    }
   }, [router]);
 
   useEffect(() => {
@@ -264,53 +268,14 @@ export default function AgentPage() {
 
       <main className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto w-full px-4 py-5">
 
-        {/* Empty state — no deal loaded */}
-        {!deal && !parsing && (
-          <div className="flex-1 flex flex-col items-center justify-center py-20">
-            <p className="text-2xl font-semibold mb-2 tracking-tight"
-              style={{ fontFamily: "var(--font-playfair)", color: "var(--ink)" }}>
-              Ready when you are, {user?.name.split(" ")[0] ?? "Jerrod"}.
-            </p>
-            <p className="text-sm mb-10 text-center max-w-sm" style={{ color: "var(--ink-mid)" }}>
-              Upload a contract and I'll read it, flag what matters, and tell you exactly what to do next.
-            </p>
-            {parseError && (
-              <p className="text-sm mb-4 px-4 py-2 rounded-lg"
-                style={{ background: "#FEF2F2", color: "var(--crimson)", border: "1px solid #FECACA" }}>
-                {parseError}
-              </p>
-            )}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <label className="cursor-pointer">
-                <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleParse(f); }} />
-                <span className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all"
-                  style={{ background: "var(--ink)", color: "var(--cream)" }}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                  </svg>
-                  Upload contract (PDF)
-                </span>
-              </label>
-              <button onClick={() => handleParse()}
-                className="px-6 py-3 rounded-xl text-sm font-semibold border transition-all"
-                style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)", background: "var(--surface)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--ink-mid)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--cream-border)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-mid)"; }}>
-                Use sample contract
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Parse overlay */}
+        {/* Loading state */}
         {parsing && (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4"
                 style={{ borderColor: "var(--ink)", borderTopColor: "transparent" }} />
-              <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>Reading contract...</p>
-              <p className="text-xs mt-1" style={{ color: "var(--ink-mid)" }}>Extracting deal details and compliance flags</p>
+              <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>Harriett is getting ready...</p>
+              <p className="text-xs mt-1" style={{ color: "var(--ink-mid)" }}>Loading your deal and memory</p>
             </div>
           </div>
         )}
@@ -361,12 +326,6 @@ export default function AgentPage() {
                   style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
                   Memory ready
                 </span>
-                <button
-                  onClick={() => { setDeal(null); setMessages([]); setSendStates({}); }}
-                  className="text-xs px-3 py-1.5 rounded-lg border transition-all"
-                  style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
-                  New deal
-                </button>
               </div>
             )}
           </div>
