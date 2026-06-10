@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { getUser, clearUser, type HarriettUser } from "../lib/auth";
 import {
@@ -820,77 +820,183 @@ function UrgencySection({
   );
 }
 
+const SIDEBAR_NAV = [
+  { label: "Dashboard",       href: "/dashboard" },
+  { label: "Calendar",        href: "/calendar" },
+  { label: "Transaction",     href: "/demo" },
+  { label: "Pre-Listing CMA", href: "/pre-listing" },
+  { label: "Ask Harriett",    href: "/agent" },
+];
+
 function UrgencyPanel({
-  overdue, dueToday, upcoming, harriettDid, ctas,
+  overdue, dueToday, upcoming, harriettDid, user, onSignOut,
 }: {
   overdue: UrgencyItem[];
   dueToday: UrgencyItem[];
   upcoming: UpcomingItem[];
   harriettDid: ActivityItem[];
-  ctas: CtaItem[];
+  user: HarriettUser;
+  onSignOut: () => void;
 }) {
+  const pathname = usePathname();
+  const [bellOpen, setBellOpen] = useState(false);
+  const [notifs, setNotifs] = useState<AppNotification[]>(NOTIFICATIONS);
+  const bellRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function out(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false);
+    }
+    if (bellOpen) document.addEventListener("mousedown", out);
+    return () => document.removeEventListener("mousedown", out);
+  }, [bellOpen]);
+
+  const unread = notifs.filter((n) => !n.read).length;
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto border-r"
+    <div className="flex flex-col h-full border-r overflow-hidden"
       style={{ background: "#FAFAF8", borderColor: "var(--cream-border)" }}>
 
-      <UrgencySection label="Overdue" count={overdue.length} variant="overdue">
-        {overdue.map((item) => (
-          <div key={item.id} className="rounded-lg border px-3 py-2.5"
-            style={{ background: "white", borderColor: "#FECACA" }}>
-            <p className="text-xs font-semibold leading-snug" style={{ color: "var(--ink)" }}>{item.text}</p>
-            {item.sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--crimson)" }}>{item.sub}</p>}
-          </div>
-        ))}
-      </UrgencySection>
+      {/* Wordmark */}
+      <div className="px-4 py-4 flex-shrink-0">
+        <span className="text-xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-playfair)", color: "var(--ink)" }}>
+          Harriett<span style={{ color: "var(--crimson)" }}>.</span>
+        </span>
+      </div>
 
-      <UrgencySection label="Due Today" count={dueToday.length} variant="today">
-        {dueToday.map((item) => (
-          <div key={item.id} className="rounded-lg border px-3 py-2.5"
-            style={{ background: "white", borderColor: "#FDE68A" }}>
-            <p className="text-xs font-semibold leading-snug" style={{ color: "var(--ink)" }}>{item.text}</p>
-            {item.sub && <p className="text-[10px] mt-0.5" style={{ color: "#B45309" }}>{item.sub}</p>}
-          </div>
-        ))}
-      </UrgencySection>
-
-      <UrgencySection label="Upcoming" count={upcoming.length} variant="upcoming">
-        {upcoming.map((item) => (
-          <div key={item.key} className="flex items-baseline gap-2 px-1 py-0.5">
-            <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "var(--ink)", minWidth: "36px" }}>{item.date}</span>
-            <span className="text-[11px] leading-snug" style={{ color: "var(--ink-mid)" }}>{item.text}</span>
-          </div>
-        ))}
-      </UrgencySection>
-
-      <UrgencySection label="Harriett did · today" count={harriettDid.length} variant="harriett">
-        {harriettDid.map((a) => {
-          const accent = a.type === "flag" ? "var(--crimson)" : a.type === "mls" || a.type === "postcard" ? "#15803d" : "var(--ink-mid)";
+      {/* Nav */}
+      <nav className="flex-shrink-0 pb-2 border-b" style={{ borderColor: "var(--cream-border)" }}>
+        {SIDEBAR_NAV.map((item) => {
+          const active = pathname === item.href;
           return (
-            <div key={a.id} className="flex items-start gap-2 py-0.5"
-              style={{ borderLeft: `2px solid ${accent}`, paddingLeft: "7px" }}>
+            <Link key={item.href} href={item.href}
+              className="flex items-center px-4 py-2.5 text-sm transition-colors"
+              style={{
+                color: active ? "var(--crimson)" : "var(--ink)",
+                fontWeight: active ? 600 : 400,
+                background: active ? "var(--cream)" : "transparent",
+                borderLeft: active ? "2px solid var(--crimson)" : "2px solid transparent",
+              }}>
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Urgency sections — scrollable */}
+      <div className="flex-1 overflow-y-auto">
+        <UrgencySection label="Overdue" count={overdue.length} variant="overdue">
+          {overdue.map((item) => (
+            <div key={item.id} className="rounded-lg border px-3 py-2.5"
+              style={{ background: "white", borderColor: "#FECACA" }}>
+              <p className="text-xs font-semibold leading-snug" style={{ color: "var(--ink)" }}>{item.text}</p>
+              {item.sub && <p className="text-[10px] mt-0.5" style={{ color: "var(--crimson)" }}>{item.sub}</p>}
+            </div>
+          ))}
+        </UrgencySection>
+
+        <UrgencySection label="Due Today" count={dueToday.length} variant="today">
+          {dueToday.map((item) => (
+            <div key={item.id} className="rounded-lg border px-3 py-2.5"
+              style={{ background: "white", borderColor: "#FDE68A" }}>
+              <p className="text-xs font-semibold leading-snug" style={{ color: "var(--ink)" }}>{item.text}</p>
+              {item.sub && <p className="text-[10px] mt-0.5" style={{ color: "#B45309" }}>{item.sub}</p>}
+            </div>
+          ))}
+        </UrgencySection>
+
+        <UrgencySection label="Upcoming" count={upcoming.length} variant="upcoming">
+          {upcoming.map((item) => (
+            <div key={item.key} className="flex items-baseline gap-2 px-1 py-0.5">
+              <span className="text-[10px] font-bold flex-shrink-0" style={{ color: "var(--ink)", minWidth: "36px" }}>{item.date}</span>
+              <span className="text-[11px] leading-snug" style={{ color: "var(--ink-mid)" }}>{item.text}</span>
+            </div>
+          ))}
+        </UrgencySection>
+
+        <UrgencySection label="Harriett did · today" count={harriettDid.length} variant="harriett">
+          {harriettDid.map((a) => (
+            <div key={a.id} className="flex items-start gap-2 py-0.5">
+              <span className="w-1 h-1 rounded-full flex-shrink-0 mt-1.5"
+                style={{ background: a.type === "flag" ? "var(--crimson)" : a.type === "mls" || a.type === "postcard" ? "#15803d" : "var(--ink-light)" }} />
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] font-semibold leading-snug" style={{ color: "var(--ink)" }}>{a.text}</p>
                 <p className="text-[10px] mt-0.5" style={{ color: "var(--ink-light)" }}>{a.timeAgo}</p>
               </div>
             </div>
-          );
-        })}
-      </UrgencySection>
-
-      {ctas.length > 0 && (
-        <div className="mt-auto p-3 border-t space-y-2" style={{ borderColor: "var(--cream-border)" }}>
-          {ctas.map((cta) => (
-            <Link key={cta.label} href={cta.href}
-              className="block text-center text-xs font-semibold px-3 py-2 rounded-lg transition-all active:scale-[0.98]"
-              style={cta.primary
-                ? { background: "var(--ink)", color: "var(--cream)" }
-                : { border: "1px solid var(--cream-border)", color: "var(--ink-mid)", background: "transparent" }
-              }>
-              {cta.label}
-            </Link>
           ))}
+        </UrgencySection>
+      </div>
+
+      {/* Bottom user bar */}
+      <div className="flex-shrink-0 border-t px-3 py-2.5 flex items-center gap-2"
+        style={{ borderColor: "var(--cream-border)" }}>
+
+        {/* Bell */}
+        <div ref={bellRef} className="relative">
+          <button onClick={() => setBellOpen((p) => !p)}
+            className="p-1.5 rounded-md transition-colors relative"
+            style={{ color: "var(--ink-light)" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--ink)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--ink-light)")}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+            </svg>
+            {unread > 0 && (
+              <span className="absolute top-0 right-0 w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold rounded-full"
+                style={{ background: "var(--crimson)", color: "white", transform: "translate(25%,-25%)" }}>
+                {unread}
+              </span>
+            )}
+          </button>
+
+          {bellOpen && (
+            <div className="absolute left-0 bottom-full mb-2 w-80 rounded-xl border overflow-hidden shadow-xl z-50"
+              style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--cream-border)" }}>
+                <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ink)" }}>Notifications</p>
+                {unread > 0 && (
+                  <button onClick={() => setNotifs((p) => p.map((n) => ({ ...n, read: true })))}
+                    className="text-xs" style={{ color: "var(--crimson)" }}>
+                    Mark all read
+                  </button>
+                )}
+              </div>
+              <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+                {notifs.length === 0 ? (
+                  <p className="text-xs text-center py-6" style={{ color: "var(--ink-mid)" }}>No notifications.</p>
+                ) : notifs.map((n) => (
+                  <div key={n.id}
+                    className="px-4 py-3 flex items-start gap-3 border-b last:border-0 cursor-pointer"
+                    style={{ borderColor: "var(--cream-border)", background: n.read ? "transparent" : "#FEFCFB" }}
+                    onClick={() => setNotifs((p) => p.map((x) => x.id === n.id ? { ...x, read: true } : x))}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold leading-snug" style={{ color: "var(--ink)" }}>{n.text}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "var(--ink-mid)" }}>{n.sub}</p>
+                    </div>
+                    {!n.read && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2" style={{ background: "var(--crimson)" }} />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* User info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold truncate leading-none" style={{ color: "var(--ink)" }}>{user.name}</p>
+          <p className="text-[10px] mt-0.5 capitalize" style={{ color: "var(--ink-light)" }}>{user.role}</p>
+        </div>
+
+        {/* Sign out */}
+        <button onClick={onSignOut}
+          className="flex-shrink-0 text-[11px] px-2 py-1 rounded border transition-colors"
+          style={{ color: "var(--ink-light)", borderColor: "var(--cream-border)" }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--ink)")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--ink-light)")}>
+          Out
+        </button>
+      </div>
     </div>
   );
 }
@@ -1019,7 +1125,7 @@ function CalendarStrip({ agentName }: { agentName: string }) {
 
 // ─── AGENT VIEW ──────────────────────────────────────────────────────────────
 
-function AgentView({ user }: { user: HarriettUser }) {
+function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("deals");
   const agentDeals = DEALS.filter((d) => d.stage !== "closed");
   const myPreListing = PRE_LISTING.filter((p) => p.agent === user.name);
@@ -1030,8 +1136,6 @@ function AgentView({ user }: { user: HarriettUser }) {
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address}` }));
 
-  const ctas: CtaItem[] = [];
-
   const tabs = [
     { key: "deals",       label: "Deals",       count: agentDeals.length },
     { key: "pre-listing", label: "Pre-Listing",  count: myPreListing.length },
@@ -1041,7 +1145,7 @@ function AgentView({ user }: { user: HarriettUser }) {
 
   return (
     <div className="h-full" style={{ display: "grid", gridTemplateColumns: "280px 1fr" }}>
-      <UrgencyPanel overdue={overdue} dueToday={dueToday} upcoming={upcoming} harriettDid={ACTIVITY.slice(0, 3)} ctas={ctas} />
+      <UrgencyPanel overdue={overdue} dueToday={dueToday} upcoming={upcoming} harriettDid={ACTIVITY.slice(0, 3)} user={user} onSignOut={onSignOut} />
 
       <div className="overflow-y-auto p-6">
         <div className="max-w-3xl">
@@ -1090,7 +1194,7 @@ function AgentView({ user }: { user: HarriettUser }) {
 
 // ─── BROKER VIEW ─────────────────────────────────────────────────────────────
 
-function BrokerView() {
+function BrokerView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("deals");
   const [queue, setQueue] = useState(APPROVAL_QUEUE);
   const activeDeals = DEALS.filter((d) => d.stage !== "closed");
@@ -1102,8 +1206,6 @@ function BrokerView() {
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address} · ${d.agent}` }));
 
-  const ctas: CtaItem[] = [{ label: "+ Listing", href: "/demo", primary: true }];
-
   const tabs = [
     { key: "deals",    label: "All Deals",      count: activeDeals.length },
     { key: "approval", label: "Approval Queue",  count: queue.length },
@@ -1113,7 +1215,7 @@ function BrokerView() {
 
   return (
     <div className="h-full" style={{ display: "grid", gridTemplateColumns: "280px 1fr" }}>
-      <UrgencyPanel overdue={overdue} dueToday={dueToday} upcoming={upcoming} harriettDid={ACTIVITY.slice(0, 3)} ctas={ctas} />
+      <UrgencyPanel overdue={overdue} dueToday={dueToday} upcoming={upcoming} harriettDid={ACTIVITY.slice(0, 3)} user={user} onSignOut={onSignOut} />
 
       <div className="overflow-y-auto p-6">
         <div className="max-w-3xl">
@@ -1152,7 +1254,7 @@ function BrokerView() {
 
 // ─── COORDINATOR VIEW ────────────────────────────────────────────────────────
 
-function CoordinatorView({ user }: { user: HarriettUser }) {
+function CoordinatorView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("tasks");
   const [tasks, setTasks] = useState(COORD_TASKS);
   const activeDeals = DEALS.filter((d) => d.stage !== "closed");
@@ -1176,7 +1278,7 @@ function CoordinatorView({ user }: { user: HarriettUser }) {
 
   return (
     <div className="h-full" style={{ display: "grid", gridTemplateColumns: "280px 1fr" }}>
-      <UrgencyPanel overdue={overdue} dueToday={dueToday} upcoming={upcoming} harriettDid={ACTIVITY.slice(0, 3)} ctas={[]} />
+      <UrgencyPanel overdue={overdue} dueToday={dueToday} upcoming={upcoming} harriettDid={ACTIVITY.slice(0, 3)} user={user} onSignOut={onSignOut} />
 
       <div className="overflow-y-auto p-6">
         <div className="max-w-3xl">
@@ -1271,11 +1373,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
-      <DashNav user={user} onSignOut={signOut} />
       <main className="flex-1 min-h-0 overflow-hidden">
-        {user.role === "broker"      && <BrokerView />}
-        {user.role === "agent"       && <AgentView user={user} />}
-        {user.role === "coordinator" && <CoordinatorView user={user} />}
+        {user.role === "broker"      && <BrokerView user={user} onSignOut={signOut} />}
+        {user.role === "agent"       && <AgentView user={user} onSignOut={signOut} />}
+        {user.role === "coordinator" && <CoordinatorView user={user} onSignOut={signOut} />}
       </main>
     </div>
   );
