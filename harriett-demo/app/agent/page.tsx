@@ -43,7 +43,6 @@ export default function AgentPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [autoSeeding, setAutoSeeding] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const [seedingLaw, setSeedingLaw] = useState(false);
@@ -58,16 +57,10 @@ export default function AgentPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const autoLoaded = useRef(false);
   useEffect(() => {
     const u = getUser();
     if (!u) { router.push("/login"); return; }
     setUser(u);
-    if (!autoLoaded.current) {
-      autoLoaded.current = true;
-      setAutoSeeding(true);
-      Promise.all([seedMemory(false), seedLaw(), seedTimeline()]).then(() => setAutoSeeding(false));
-    }
   }, [router]);
 
   useEffect(() => {
@@ -107,7 +100,9 @@ export default function AgentPage() {
   }
 
   async function loadMemories() {
-    const res = await fetch("/api/memory/list?userId=jerrod-hastings");
+    const u = getUser();
+    const userId = u?.id ?? "unknown";
+    const res = await fetch(`/api/memory/list?userId=${userId}`);
     const data = await res.json();
     setMemories(data.results ?? []);
   }
@@ -231,17 +226,10 @@ export default function AgentPage() {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {autoSeeding ? (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: "var(--crimson)" }} />
-                <span className="text-xs" style={{ color: "var(--ink-mid)" }}>Loading memory...</span>
-              </div>
-            ) : (
-              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
-                {memories.length > 0 ? `${memories.length} memories` : "Memory ready"}
-              </span>
-            )}
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
+              {memories.length > 0 ? `${memories.length} memories` : "No memories yet"}
+            </span>
           </div>
         </div>
 
@@ -316,7 +304,7 @@ export default function AgentPage() {
                     Ask Harriett anything.
                   </p>
                   <p className="text-xs mb-5" style={{ color: "var(--ink-mid)" }}>
-                    {autoSeeding ? "Loading Harriett's memory..." : "Ask any question about the transaction, parties, compliance flags, or office procedures."}
+                    Ask any question about the transaction, parties, compliance flags, or office procedures.
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {SUGGESTED.map((s) => (
@@ -418,7 +406,7 @@ export default function AgentPage() {
             <div className="flex gap-2 flex-shrink-0">
               <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder={autoSeeding ? "Loading memory..." : "Ask Harriett..."}
+                placeholder="Ask Harriett..."
                 disabled={loading}
                 className="flex-1 px-4 py-3 rounded-xl border text-sm outline-none transition-all"
                 style={{ background: "var(--surface)", borderColor: "var(--cream-border)", color: "var(--ink)" }}

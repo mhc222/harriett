@@ -100,7 +100,7 @@ export default function OnboardingPage() {
     if (typeof window !== "undefined") {
       localStorage.setItem("harriett_prefs", JSON.stringify({ name, signoff, tones, selectedVendors, connections: connected }));
     }
-    router.push("/agent");
+    router.push("/dashboard");
   }
 
   const firstName = (userName || name).split(" ")[0];
