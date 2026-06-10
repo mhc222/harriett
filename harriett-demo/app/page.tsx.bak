@@ -1,0 +1,180 @@
+"use client";
+
+import { useState } from "react";
+import UploadZone from "./components/UploadZone";
+import HarriettOutput from "./components/HarriettOutput";
+import type { DealFields } from "./lib/types";
+
+type Stage = "upload" | "parsing" | "ready";
+
+export default function Home() {
+  const [stage, setStage] = useState<Stage>("upload");
+  const [deal, setDeal] = useState<DealFields | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  async function parseDeal(file?: File) {
+    setStage("parsing");
+    setParseError(null);
+    try {
+      let res: Response;
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        res = await fetch("/api/parse", { method: "POST", body: formData });
+      } else {
+        res = await fetch("/api/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ demoMode: true }),
+        });
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setDeal(data);
+      setStage("ready");
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Parse failed");
+      setStage("upload");
+    }
+  }
+
+  function reset() {
+    setStage("upload");
+    setDeal(null);
+    setParseError(null);
+  }
+
+  return (
+    <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
+      <header className="px-6 py-3.5 flex-shrink-0 border-b" style={{ background: "var(--ink)", borderColor: "#2C2820" }}>
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span
+              className="text-lg font-semibold tracking-tight"
+              style={{ fontFamily: "var(--font-playfair)", color: "#F5F0E8" }}
+            >
+              Harriett<span style={{ color: "var(--crimson)" }}>.</span>
+            </span>
+            <span className="text-sm hidden sm:block" style={{ color: "#6B6358" }}>Pritchett-Moore Real Estate</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <nav className="flex gap-4 text-sm">
+              <span className="font-medium" style={{ color: "#D4CFC8" }}>Transaction</span>
+              <a href="/pre-listing" className="transition-colors" style={{ color: "#6B6358" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
+              >Pre-Listing CMA</a>
+            </nav>
+            {stage === "ready" && deal && (
+              <button
+                onClick={reset}
+                className="text-sm px-3 py-1.5 rounded-lg transition-colors border"
+                style={{ color: "#9C9189", borderColor: "#3A342C" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#F5F0E8"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#6B635A"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9C9189"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A342C"; }}
+              >
+                New transaction
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col">
+        {stage === "upload" && (
+          <UploadZone
+            onFile={(file) => parseDeal(file)}
+            onSample={() => parseDeal()}
+            error={parseError}
+          />
+        )}
+
+        {stage === "parsing" && <ParsingState />}
+
+        {stage === "ready" && deal && (
+          <HarriettOutput deal={deal} onDealChange={setDeal} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+const SKEL = "#E8E2D6";
+const SKEL_BORDER = "var(--cream-border)";
+
+function PulseBar({ w, h = "0.9rem", delay = 0 }: { w?: string; h?: string; delay?: number }) {
+  return (
+    <div
+      className="animate-pulse rounded"
+      style={{ width: w ?? "100%", height: h, background: SKEL, animationDelay: `${delay}ms` }}
+    />
+  );
+}
+
+function ParsingState() {
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="flex-1 max-w-[1400px] mx-auto w-full flex flex-col md:flex-row gap-5 px-4 md:px-6 py-6">
+        <div className="hidden md:block w-[268px] flex-shrink-0">
+          <div className="rounded-xl border overflow-hidden" style={{ background: "var(--surface)", borderColor: SKEL_BORDER }}>
+            <div className="px-5 pt-5 pb-4 border-b space-y-2" style={{ borderColor: SKEL_BORDER }}>
+              <PulseBar w="75%" h="1.1rem" />
+              <PulseBar w="50%" delay={60} />
+            </div>
+            <div className="px-5 py-4 border-b grid grid-cols-2 gap-3" style={{ borderColor: SKEL_BORDER }}>
+              <div className="space-y-1.5"><PulseBar w="2.5rem" h="0.7rem" /><PulseBar h="1.5rem" delay={80} /></div>
+              <div className="space-y-1.5"><PulseBar w="3rem" h="0.7rem" /><PulseBar h="1.1rem" delay={120} /></div>
+            </div>
+            <div className="px-5 py-4 border-b space-y-2" style={{ borderColor: SKEL_BORDER }}>
+              <PulseBar w="5rem" h="0.7rem" />
+              {[0, 1].map((i) => <PulseBar key={i} h="1.75rem" delay={160 + i * 60} />)}
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <PulseBar w="3.5rem" h="0.7rem" />
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="space-y-1">
+                  <PulseBar w="4rem" h="0.65rem" delay={280 + i * 40} />
+                  <PulseBar delay={300 + i * 40} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="rounded-xl border overflow-hidden" style={{ background: "var(--surface)", borderColor: SKEL_BORDER }}>
+            <div className="border-b flex" style={{ borderColor: SKEL_BORDER }}>
+              {["Transaction Checklist", "Marketing", "Agent Outreach"].map((label, i) => (
+                <div key={label} className="flex-1 flex items-center justify-center px-4 py-3.5">
+                  <PulseBar w="5rem" h="0.85rem" delay={i * 80} />
+                </div>
+              ))}
+            </div>
+            <div className="p-6 space-y-6">
+              {[4, 3, 5].map((count, gi) => (
+                <div key={gi}>
+                  <PulseBar w="7rem" h="0.7rem" delay={gi * 100} />
+                  <div className="mt-3 space-y-2">
+                    {Array.from({ length: count }).map((_, i) => (
+                      <div key={i} className="flex gap-3 items-start p-3 rounded-lg border" style={{ borderColor: SKEL_BORDER }}>
+                        <div className="w-4 h-4 flex-shrink-0 mt-0.5 animate-pulse rounded" style={{ background: SKEL }} />
+                        <div className="flex-1 space-y-1.5">
+                          <PulseBar w="75%" delay={gi * 100 + i * 40} />
+                          <PulseBar w={`${70 + (i % 3) * 10}%`} h="0.75rem" delay={gi * 100 + i * 40 + 20} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-center pb-6">
+        <p className="text-sm" style={{ color: "var(--ink-mid)" }}>Harriett is reading the document...</p>
+      </div>
+    </div>
+  );
+}

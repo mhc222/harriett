@@ -1,0 +1,5 @@
+{"type":"server-started","port":61079,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:61079","screen_dir":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/75764-1780962398/content","state_dir":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/75764-1780962398/state"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/75764-1780962398/content/crm-layout.html"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/75764-1780962398/content/crm-combined.html"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/75764-1780962398/content/waiting-1.html"}
+{"type":"server-stopped","reason":"idle timeout"}

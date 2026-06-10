@@ -1,0 +1,2 @@
+{"type":"server-started","port":61673,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:61673","screen_dir":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/85277-1781007880/content","state_dir":"/Users/mattcronin/Projects/Harriett/harriett-demo/.superpowers/brainstorm/85277-1781007880/state"}
+{"type":"server-stopped","reason":"idle timeout"}

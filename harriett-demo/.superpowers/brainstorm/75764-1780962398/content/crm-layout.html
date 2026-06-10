@@ -1,0 +1,224 @@
+<h2>Dashboard CRM Layout — 3 Approaches</h2>
+<p class="subtitle">All 3 keep everything above the fold. Pick the structure that feels right.</p>
+
+<div class="cards">
+
+  <!-- OPTION A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F5F0E8;padding:12px;font-family:system-ui">
+      <!-- Nav bar -->
+      <div style="background:#1C1814;border-radius:6px 6px 0 0;padding:7px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <span style="color:#F5F0E8;font-weight:600;font-size:11px">Harriett<span style="color:#9B1C1C">.</span></span>
+        <span style="color:#9C9189;font-size:9px">Jerrod Hastings · Agent</span>
+      </div>
+      <!-- Content tabs row below nav -->
+      <div style="background:#fff;border-bottom:1px solid #E8E2D8;padding:0 12px;display:flex;align-items:center;gap:0">
+        <span style="font-size:9px;padding:7px 10px;border-bottom:2px solid #9B1C1C;color:#9B1C1C;font-weight:600">Overview</span>
+        <span style="font-size:9px;padding:7px 10px;color:#6B635A">Deals (3)</span>
+        <span style="font-size:9px;padding:7px 10px;color:#6B635A">Pre-Listing</span>
+        <span style="font-size:9px;padding:7px 10px;color:#6B635A">Activity</span>
+        <span style="font-size:9px;padding:7px 10px;color:#6B635A">Vendors</span>
+      </div>
+      <!-- Overview tab content: 2 col -->
+      <div style="display:grid;grid-template-columns:1fr 220px;gap:8px;margin-top:8px">
+        <!-- Main -->
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <!-- Stats row -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+            <div style="background:#fff;border:1px solid #E8E2D8;border-radius:6px;padding:8px">
+              <div style="font-size:16px;font-weight:700;color:#1C1814">3</div>
+              <div style="font-size:8px;color:#6B635A">Active Deals</div>
+            </div>
+            <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:8px">
+              <div style="font-size:16px;font-weight:700;color:#9B1C1C">2</div>
+              <div style="font-size:8px;color:#9B1C1C">Urgent Flags</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8E2D8;border-radius:6px;padding:8px">
+              <div style="font-size:16px;font-weight:700;color:#1C1814">Aug 1</div>
+              <div style="font-size:8px;color:#6B635A">Next Close</div>
+            </div>
+          </div>
+          <!-- Deal rows (compact) -->
+          <div style="background:#fff;border:1px solid #E8E2D8;border-radius:6px;overflow:hidden">
+            <div style="padding:6px 10px;border-bottom:1px solid #E8E2D8;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:9px;font-weight:600;color:#1C1814">604 2nd St NW, Gordo</span>
+              <span style="font-size:8px;background:#FFFBEB;color:#B45309;padding:2px 6px;border-radius:99px;border:1px solid #FDE68A">Under Contract</span>
+            </div>
+            <div style="padding:6px 10px;border-bottom:1px solid #E8E2D8;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:9px;font-weight:600;color:#1C1814">3310 McFarland Blvd</span>
+              <span style="font-size:8px;background:#F0FDF4;color:#166534;padding:2px 6px;border-radius:99px;border:1px solid #BBF7D0">Closing</span>
+            </div>
+            <div style="padding:6px 10px;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:9px;font-weight:600;color:#1C1814">914 Forest Lake Dr</span>
+              <span style="font-size:8px;background:#EFF6FF;color:#1D4ED8;padding:2px 6px;border-radius:99px;border:1px solid #BFDBFE">Active Listing</span>
+            </div>
+          </div>
+        </div>
+        <!-- Sidebar: always visible -->
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="background:#fff;border:1px solid #E8E2D8;border-radius:6px;padding:8px">
+            <div style="font-size:8px;font-weight:600;color:#1C1814;margin-bottom:5px">My To-Dos <span style="color:#9B1C1C">2</span></div>
+            <div style="font-size:8px;color:#6B635A;padding:3px 0;border-bottom:1px solid #F5F0E8">Send photos to Alyssa <span style="color:#9B1C1C;font-size:7px">Urgent</span></div>
+            <div style="font-size:8px;color:#6B635A;padding:3px 0">Confirm inspection — 1842 University</div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E2D8;border-radius:6px;padding:8px">
+            <div style="font-size:8px;font-weight:600;color:#1C1814;margin-bottom:5px">Activity</div>
+            <div style="font-size:8px;color:#6B635A;padding:2px 0;border-left:2px solid #166534;padding-left:5px;margin-bottom:3px">Photos uploaded — 914 Forest Lake</div>
+            <div style="font-size:8px;color:#6B635A;padding:2px 0;border-left:2px solid #9B1C1C;padding-left:5px">Flag: Inspection deadline</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Top Tabs + Stats Overview</h3>
+      <p>Nav tabs switch between Deals, Pipeline, Activity, Vendors. Overview tab shows compact stats + deal rows + persistent sidebar. Zero scrolling — all content in viewport via tab switching.</p>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F5F0E8;padding:12px;font-family:system-ui">
+      <div style="background:#1C1814;border-radius:6px 6px 0 0;padding:7px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <span style="color:#F5F0E8;font-weight:600;font-size:11px">Harriett<span style="color:#9B1C1C">.</span></span>
+        <span style="color:#9C9189;font-size:9px">Jerrod Hastings</span>
+      </div>
+      <!-- 3-col layout: left rail + main + right sidebar -->
+      <div style="display:grid;grid-template-columns:110px 1fr 180px;gap:0;background:#fff;border:1px solid #E8E2D8;border-top:none;border-radius:0 0 6px 6px;overflow:hidden;min-height:180px">
+        <!-- Left rail nav -->
+        <div style="background:#FAFAF8;border-right:1px solid #E8E2D8;padding:8px 0">
+          <div style="padding:5px 10px;background:#F5F0E8;border-left:2px solid #9B1C1C">
+            <div style="font-size:8px;font-weight:600;color:#9B1C1C">Overview</div>
+          </div>
+          <div style="padding:5px 10px">
+            <div style="font-size:8px;color:#6B635A">Deals</div>
+            <div style="font-size:7px;color:#9C9189;margin-top:1px">3 active</div>
+          </div>
+          <div style="padding:5px 10px">
+            <div style="font-size:8px;color:#6B635A">Pre-Listing</div>
+            <div style="font-size:7px;color:#9C9189;margin-top:1px">1 upcoming</div>
+          </div>
+          <div style="padding:5px 10px">
+            <div style="font-size:8px;color:#6B635A">Activity</div>
+          </div>
+          <div style="padding:5px 10px">
+            <div style="font-size:8px;color:#6B635A">Vendors</div>
+          </div>
+          <div style="margin-top:8px;padding:5px 10px;border-top:1px solid #E8E2D8">
+            <div style="font-size:8px;background:#1C1814;color:#F5F0E8;padding:4px 8px;border-radius:4px;text-align:center">+ New Deal</div>
+          </div>
+        </div>
+        <!-- Main content -->
+        <div style="padding:10px">
+          <div style="font-size:10px;font-weight:600;color:#1C1814;margin-bottom:6px">Good morning, Jerrod.</div>
+          <!-- Stat chips -->
+          <div style="display:flex;gap:4px;margin-bottom:8px">
+            <span style="font-size:8px;background:#F5F0E8;border:1px solid #E8E2D8;border-radius:4px;padding:3px 6px;color:#1C1814">3 active</span>
+            <span style="font-size:8px;background:#FEF2F2;border:1px solid #FECACA;border-radius:4px;padding:3px 6px;color:#9B1C1C">2 urgent</span>
+            <span style="font-size:8px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:4px;padding:3px 6px;color:#166534">1 closing soon</span>
+          </div>
+          <!-- Deal cards compact rows -->
+          <div style="font-size:8px;font-weight:600;color:#6B635A;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em">Active Deals</div>
+          <div style="background:#FAFAF8;border:1px solid #E8E2D8;border-radius:5px;overflow:hidden">
+            <div style="padding:5px 8px;border-bottom:1px solid #E8E2D8;display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:8px;font-weight:600;color:#1C1814">604 2nd St NW</div><div style="font-size:7px;color:#9C9189">Closes Jun 5 · FHA · $208k</div></div>
+              <span style="font-size:7px;background:#FFFBEB;color:#B45309;padding:1px 5px;border-radius:99px">Under Contract</span>
+            </div>
+            <div style="padding:5px 8px;border-bottom:1px solid #E8E2D8;display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:8px;font-weight:600;color:#1C1814">3310 McFarland Blvd</div><div style="font-size:7px;color:#9C9189">Closes Jul 8 · Conv · $415k</div></div>
+              <span style="font-size:7px;background:#F0FDF4;color:#166534;padding:1px 5px;border-radius:99px">Closing</span>
+            </div>
+            <div style="padding:5px 8px;display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:8px;font-weight:600;color:#1C1814">914 Forest Lake Dr</div><div style="font-size:7px;color:#9C9189">Listed Jun 2 · $329k</div></div>
+              <span style="font-size:7px;background:#EFF6FF;color:#1D4ED8;padding:1px 5px;border-radius:99px">Active Listing</span>
+            </div>
+          </div>
+        </div>
+        <!-- Right sidebar: persistent -->
+        <div style="background:#FAFAF8;border-left:1px solid #E8E2D8;padding:8px">
+          <div style="font-size:8px;font-weight:600;color:#1C1814;margin-bottom:5px">To-Dos <span style="color:#9B1C1C;background:#FEF2F2;padding:1px 4px;border-radius:3px">2</span></div>
+          <div style="font-size:7.5px;color:#6B635A;padding:3px 0;border-bottom:1px solid #E8E2D8">📷 Send photos — 914 Forest Lake</div>
+          <div style="font-size:7.5px;color:#6B635A;padding:3px 0;margin-bottom:8px">🔍 Confirm inspection — 1842</div>
+          <div style="font-size:8px;font-weight:600;color:#1C1814;margin-bottom:4px">Recent</div>
+          <div style="font-size:7.5px;color:#6B635A;padding:2px 0;border-left:2px solid #166534;padding-left:4px;margin-bottom:2px">Photos received (18)</div>
+          <div style="font-size:7.5px;color:#9B1C1C;padding:2px 0;border-left:2px solid #9B1C1C;padding-left:4px">Inspection deadline Jun 20</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Left Rail + Persistent Sidebar</h3>
+      <p>Vertical nav rail on left (like Notion/Linear). Main content in center. Right sidebar always shows todos + urgent flags. Navigation never scrolls off screen.</p>
+    </div>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F5F0E8;padding:12px;font-family:system-ui">
+      <div style="background:#1C1814;border-radius:6px 6px 0 0;padding:7px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <span style="color:#F5F0E8;font-weight:600;font-size:11px">Harriett<span style="color:#9B1C1C">.</span></span>
+        <span style="color:#9C9189;font-size:9px">Jerrod Hastings</span>
+      </div>
+      <div style="background:#fff;border:1px solid #E8E2D8;border-top:none;border-radius:0 0 6px 6px;padding:10px">
+        <!-- Header row -->
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:600;color:#1C1814">Good morning, Jerrod.</span>
+          <div style="display:flex;gap:4px">
+            <span style="font-size:8px;background:#1C1814;color:#F5F0E8;padding:3px 8px;border-radius:4px">+ Listing</span>
+            <span style="font-size:8px;border:1px solid #E8E2D8;color:#6B635A;padding:3px 8px;border-radius:4px">Build CMA</span>
+          </div>
+        </div>
+        <!-- Bento grid -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto;gap:6px">
+          <!-- Deals list — spans 2 cols, 2 rows -->
+          <div style="grid-column:span 2;grid-row:span 2;background:#FAFAF8;border:1px solid #E8E2D8;border-radius:6px;overflow:hidden">
+            <div style="padding:6px 10px;border-bottom:1px solid #E8E2D8;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:8px;font-weight:600;color:#1C1814">Active Deals</span>
+              <span style="font-size:8px;color:#9C9189;cursor:pointer">+ add</span>
+            </div>
+            <!-- Table header -->
+            <div style="padding:4px 10px;display:grid;grid-template-columns:1fr 80px 55px;gap:4px;background:#F5F0E8;border-bottom:1px solid #E8E2D8">
+              <span style="font-size:7px;font-weight:600;color:#9C9189;text-transform:uppercase">Address</span>
+              <span style="font-size:7px;font-weight:600;color:#9C9189;text-transform:uppercase">Status</span>
+              <span style="font-size:7px;font-weight:600;color:#9C9189;text-transform:uppercase">Closes</span>
+            </div>
+            <div style="padding:5px 10px;display:grid;grid-template-columns:1fr 80px 55px;gap:4px;border-bottom:1px solid #E8E2D8;align-items:center">
+              <span style="font-size:8px;font-weight:600;color:#1C1814">604 2nd St NW, Gordo</span>
+              <span style="font-size:7px;background:#FFFBEB;color:#B45309;padding:1px 5px;border-radius:99px;display:inline-block">Under Contract</span>
+              <span style="font-size:8px;color:#6B635A">Jun 5</span>
+            </div>
+            <div style="padding:5px 10px;display:grid;grid-template-columns:1fr 80px 55px;gap:4px;border-bottom:1px solid #E8E2D8;align-items:center">
+              <span style="font-size:8px;font-weight:600;color:#1C1814">3310 McFarland Blvd</span>
+              <span style="font-size:7px;background:#F0FDF4;color:#166534;padding:1px 5px;border-radius:99px;display:inline-block">Closing</span>
+              <span style="font-size:8px;color:#6B635A">Jul 8</span>
+            </div>
+            <div style="padding:5px 10px;display:grid;grid-template-columns:1fr 80px 55px;gap:4px;align-items:center">
+              <span style="font-size:8px;font-weight:600;color:#1C1814">914 Forest Lake Dr</span>
+              <span style="font-size:7px;background:#EFF6FF;color:#1D4ED8;padding:1px 5px;border-radius:99px;display:inline-block">Active Listing</span>
+              <span style="font-size:8px;color:#9C9189">—</span>
+            </div>
+            <!-- Expand arrow -->
+            <div style="padding:4px 10px;text-align:center;border-top:1px solid #E8E2D8">
+              <span style="font-size:7px;color:#9C9189">▼ click row to expand</span>
+            </div>
+          </div>
+          <!-- To-Dos tile -->
+          <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:8px">
+            <div style="font-size:8px;font-weight:600;color:#9B1C1C;margin-bottom:4px">To-Dos <span style="background:#9B1C1C;color:#fff;padding:0 4px;border-radius:3px;font-size:7px">2</span></div>
+            <div style="font-size:7.5px;color:#1C1814;padding:2px 0;border-bottom:1px solid #FECACA">Send photos — 914 Forest Lake</div>
+            <div style="font-size:7.5px;color:#1C1814;padding:2px 0">Confirm inspection — 1842 Univ</div>
+          </div>
+          <!-- Activity tile -->
+          <div style="background:#FAFAF8;border:1px solid #E8E2D8;border-radius:6px;padding:8px">
+            <div style="font-size:8px;font-weight:600;color:#1C1814;margin-bottom:4px">Activity</div>
+            <div style="font-size:7.5px;color:#6B635A;padding:2px 0;border-left:2px solid #166534;padding-left:4px;margin-bottom:2px">Photos uploaded · 4h ago</div>
+            <div style="font-size:7.5px;color:#9B1C1C;padding:2px 0;border-left:2px solid #9B1C1C;padding-left:4px">Deadline flagged · 1d ago</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Bento Grid + Expandable Rows</h3>
+      <p>Deals shown as a compact table (not cards). Rows expand inline for detail. To-Dos and Activity in small tiles right column. Everything above fold, no scrolling needed.</p>
+    </div>
+  </div>
+
+</div>
