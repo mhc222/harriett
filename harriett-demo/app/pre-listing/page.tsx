@@ -502,10 +502,11 @@ function PreListingHeader({ showBack }: { showBack?: () => void }) {
           </span>
           <nav className="hidden md:flex items-center gap-5">
             {[
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Calendar", href: "/calendar" },
-              { label: "Transaction", href: "/demo" },
+              { label: "Dashboard",       href: "/dashboard" },
+              { label: "Calendar",        href: "/calendar" },
+              { label: "Transaction",     href: "/demo" },
               { label: "Pre-Listing CMA", href: "/pre-listing", active: true },
+              { label: "Ask Harriett",    href: "/agent" },
             ].map((item) => (
               <Link
                 key={item.href}

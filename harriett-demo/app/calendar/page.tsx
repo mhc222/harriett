@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { getUser, clearUser, type HarriettUser } from "../lib/auth";
 import { CALENDAR_EVENTS, NOTIFICATIONS, type CalendarEvent, type AppNotification } from "../lib/demo-data";
 
-const DEMO_TODAY = "2026-06-08";
+const DEMO_TODAY = new Date().toISOString().split("T")[0];
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
@@ -68,10 +68,11 @@ function CalNav({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void
           </span>
           <nav className="hidden md:flex items-center gap-5">
             {[
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Calendar",  href: "/calendar",  active: true },
-              { label: "Transaction", href: "/demo" },
+              { label: "Dashboard",       href: "/dashboard" },
+              { label: "Calendar",        href: "/calendar",  active: true },
+              { label: "Transaction",     href: "/demo" },
               { label: "Pre-Listing CMA", href: "/pre-listing" },
+              { label: "Ask Harriett",    href: "/agent" },
             ].map((item) => (
               <Link key={item.href} href={item.href} className="text-sm transition-colors"
                 style={{ color: item.active ? "#D4CFC8" : "#9C9189", fontWeight: item.active ? 500 : 400 }}

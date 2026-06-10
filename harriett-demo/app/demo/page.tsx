@@ -112,6 +112,10 @@ export default function Home() {
                 onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
               >Pre-Listing CMA</a>
+              <a href="/agent" className="transition-colors" style={{ color: "#6B6358" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#D4CFC8")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#6B6358")}
+              >Ask Harriett</a>
             </nav>
             <button
               onClick={reset}

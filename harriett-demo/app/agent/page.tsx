@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getUser, clearUser, type HarriettUser } from "../lib/auth";
+import { VENDORS, VENDOR_LABELS, type Vendor } from "../lib/demo-data";
+import type { DealFields } from "../lib/types";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -34,9 +39,16 @@ const SUGGESTED = [
 ];
 
 export default function AgentPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<HarriettUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deal, setDeal] = useState<DealFields | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [autoSeeding, setAutoSeeding] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [seeding, setSeeding] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const [seedingLaw, setSeedingLaw] = useState(false);
@@ -44,14 +56,23 @@ export default function AgentPage() {
   const [seedingTimeline, setSeedingTimeline] = useState(false);
   const [seededTimeline, setSeededTimeline] = useState(false);
   const [memories, setMemories] = useState<MemoryEntry[]>([]);
-  const [memTab, setMemTab] = useState<"chat" | "memory">("chat");
+  const [memTab, setMemTab] = useState<"chat" | "memory" | "vendors">("chat");
   const [showSources, setShowSources] = useState<number | null>(null);
+  const [sendStates, setSendStates] = useState<Record<number, { whatsapp: "idle" | "loading" | "sent" | "error"; email: "idle" | "loading" | "sent" | "error" }>>({});
+  const [fbPreview, setFbPreview] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const u = getUser();
+    if (!u) { router.push("/login"); return; }
+    setUser(u);
+  }, [router]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
 
   async function seedMemory(reset = false) {
     setSeeding(true);
@@ -122,113 +143,247 @@ export default function AgentPage() {
     }
   }
 
+  async function handleParse(file?: File) {
+    setParsing(true);
+    setParseError(null);
+    try {
+      let res: Response;
+      if (!file) {
+        res = await fetch("/api/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ demoMode: true }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append("file", file);
+        res = await fetch("/api/parse", { method: "POST", body: formData });
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Parse failed");
+      setDeal(data);
+      setAutoSeeding(true);
+      await Promise.all([seedMemory(false), seedLaw(), seedTimeline()]);
+      setAutoSeeding(false);
+      await generateBriefing(data);
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Parse failed");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  async function generateBriefing(dealData: DealFields) {
+    setLoading(true);
+    const price = (dealData.salePrice ?? dealData.listPrice).toLocaleString();
+    const prompt = `I just uploaded the contract for ${dealData.address}, ${dealData.city}, ${dealData.state}. Give me a concise briefing: key parties (sellers, buyers, agents), important dates, compliance flags I need to know, and the top 3 action items for right now. Sale price $${price}. Be specific and direct.`;
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: prompt, history: [] }),
+      });
+      const data = await res.json();
+      setMessages([{ role: "assistant", content: data.answer, memoriesUsed: data.memoriesUsed }]);
+    } catch {
+      // briefing failed silently
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendToMe(type: "whatsapp" | "email", content: string, msgIndex: number) {
+    setSendStates((s) => ({
+      ...s,
+      [msgIndex]: { ...(s[msgIndex] ?? { whatsapp: "idle" as const, email: "idle" as const }), [type]: "loading" as const },
+    }));
+    try {
+      const res = await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, content, subject: `From Harriett — ${deal?.address ?? "your deal"}` }),
+      });
+      const data = await res.json();
+      setSendStates((s) => ({
+        ...s,
+        [msgIndex]: { ...(s[msgIndex] ?? { whatsapp: "idle" as const, email: "idle" as const }), [type]: data.ok ? ("sent" as const) : ("error" as const) },
+      }));
+    } catch {
+      setSendStates((s) => ({
+        ...s,
+        [msgIndex]: { ...(s[msgIndex] ?? { whatsapp: "idle" as const, email: "idle" as const }), [type]: "error" as const },
+      }));
+    }
+  }
+
   return (
     <div className="min-h-[100dvh] flex flex-col" style={{ background: "var(--cream)" }}>
       {/* Nav */}
       <header className="px-6 py-3.5 flex-shrink-0 border-b" style={{ background: "var(--ink)", borderColor: "#2C2820" }}>
-        <div className="max-w-[1200px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-lg font-semibold" style={{ fontFamily: "var(--font-playfair)", color: "#F5F0E8" }}>
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <span className="text-lg font-semibold tracking-tight" style={{ fontFamily: "var(--font-playfair)", color: "#F5F0E8" }}>
               Harriett<span style={{ color: "var(--crimson)" }}>.</span>
             </span>
-            <span className="text-xs px-2 py-1 rounded-md" style={{ background: "#2C2820", color: "#9C9189" }}>
-              Agent Brain Test
-            </span>
+            <nav className="hidden md:flex items-center gap-5">
+              {[
+                { label: "Dashboard",       href: "/dashboard" },
+                { label: "Calendar",        href: "/calendar" },
+                { label: "Transaction",     href: "/demo" },
+                { label: "Pre-Listing CMA", href: "/pre-listing" },
+                { label: "Ask Harriett",    href: "/agent", active: true },
+              ].map((item) => (
+                <Link key={item.href} href={item.href} className="text-sm transition-colors"
+                  style={{ color: item.active ? "#D4CFC8" : "#9C9189", fontWeight: item.active ? 500 : 400 }}
+                  onMouseEnter={(e) => !item.active && (e.currentTarget.style.color = "#D4CFC8")}
+                  onMouseLeave={(e) => !item.active && (e.currentTarget.style.color = "#9C9189")}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-xs font-medium" style={{ color: "#D4CFC8" }}>Tanner Ashcraft</p>
-              <p className="text-[10px]" style={{ color: "#6B6358" }}>Associate Broker</p>
+          {user && (
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-xs font-medium" style={{ color: "#D4CFC8" }}>{user.name}</p>
+                <p className="text-[10px] capitalize" style={{ color: "#6B6358" }}>{user.role}</p>
+              </div>
+              <button onClick={() => { clearUser(); router.push("/"); }}
+                className="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+                style={{ borderColor: "#3A342C", color: "#6B6358" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#D4CFC8"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#6B635A"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#6B6358"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#3A342C"; }}
+              >
+                Sign out
+              </button>
             </div>
-          </div>
+          )}
         </div>
       </header>
 
-      <main className="flex-1 min-h-0 flex flex-col max-w-[1200px] mx-auto w-full px-4 py-5">
+      <main className="flex-1 min-h-0 flex flex-col max-w-[1400px] mx-auto w-full px-4 py-5">
+
+        {/* Empty state — no deal loaded */}
+        {!deal && !parsing && (
+          <div className="flex-1 flex flex-col items-center justify-center py-20">
+            <p className="text-2xl font-semibold mb-2 tracking-tight"
+              style={{ fontFamily: "var(--font-playfair)", color: "var(--ink)" }}>
+              Ready when you are, {user?.name.split(" ")[0] ?? "Jerrod"}.
+            </p>
+            <p className="text-sm mb-10 text-center max-w-sm" style={{ color: "var(--ink-mid)" }}>
+              Upload a contract and I'll read it, flag what matters, and tell you exactly what to do next.
+            </p>
+            {parseError && (
+              <p className="text-sm mb-4 px-4 py-2 rounded-lg"
+                style={{ background: "#FEF2F2", color: "var(--crimson)", border: "1px solid #FECACA" }}>
+                {parseError}
+              </p>
+            )}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="cursor-pointer">
+                <input ref={fileInputRef} type="file" accept=".pdf" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleParse(f); }} />
+                <span className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all"
+                  style={{ background: "var(--ink)", color: "var(--cream)" }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                  Upload contract (PDF)
+                </span>
+              </label>
+              <button onClick={() => handleParse()}
+                className="px-6 py-3 rounded-xl text-sm font-semibold border transition-all"
+                style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)", background: "var(--surface)" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--ink-mid)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--cream-border)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-mid)"; }}>
+                Use sample contract
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Parse overlay */}
+        {parsing && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-4"
+                style={{ borderColor: "var(--ink)", borderTopColor: "transparent" }} />
+              <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>Reading contract...</p>
+              <p className="text-xs mt-1" style={{ color: "var(--ink-mid)" }}>Extracting deal details and compliance flags</p>
+            </div>
+          </div>
+        )}
+
+        {/* Deal loaded — full UI */}
+        {deal && (
+        <>
         {/* Deal context banner */}
         <div className="rounded-xl border px-5 py-3.5 mb-4 flex items-center justify-between flex-shrink-0"
           style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
           <div className="flex items-center gap-5">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--ink-light)" }}>Active Deal</p>
-              <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>604 2nd St NW, Gordo, AL 35466</p>
+              <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{deal.address}, {deal.city}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--ink-mid)" }}>
-                Sellers: Rohrer, Chung, Vuong &middot; Buyers: Shaina + Kevin Fields &middot; Closed Jun 5, 2026 &middot; $208,000 FHA
+                Sellers: {deal.sellers.join(", ")} &middot; Buyers: {deal.buyers.join(", ")} &middot; Closes {deal.closingDate} &middot; ${(deal.salePrice ?? deal.listPrice).toLocaleString()} {deal.loanType ?? ""}
               </p>
             </div>
             <div className="hidden md:flex items-center gap-3">
               {[
-                { label: "Agent", value: "Jerrod Hastings" },
-                { label: "Title", value: "North River Title" },
-                { label: "Lender", value: "First Federal Bank" },
+                { label: "Agent", value: deal.listingAgent },
+                ...(deal.loanType ? [{ label: "Loan", value: deal.loanType }] : []),
+                ...(deal.flags.leadPaintDisclosure ? [{ label: "Flag", value: "Lead paint" }] : []),
               ].map((item) => (
                 <div key={item.label} className="text-center px-4 border-l" style={{ borderColor: "var(--cream-border)" }}>
                   <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--ink-light)" }}>{item.label}</p>
-                  <p className="text-xs font-medium mt-0.5" style={{ color: "var(--ink)" }}>{item.value}</p>
+                  <p className="text-xs font-medium mt-0.5" style={{ color: item.label === "Flag" ? "var(--crimson)" : "var(--ink)" }}>{item.value}</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
-            {memories.length > 0 && (
-              <div className="text-center">
-                <p className="text-lg font-bold leading-none" style={{ color: "#166534" }}>{memories.length}</p>
-                <p className="text-[10px]" style={{ color: "var(--ink-light)" }}>memories</p>
+            {autoSeeding ? (
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: "var(--crimson)" }} />
+                <span className="text-xs" style={{ color: "var(--ink-mid)" }}>Loading memory...</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                {memories.length > 0 && (
+                  <div className="text-center">
+                    <p className="text-base font-bold leading-none" style={{ color: "#166534" }}>{memories.length}</p>
+                    <p className="text-[10px]" style={{ color: "var(--ink-light)" }}>memories</p>
+                  </div>
+                )}
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                  style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
+                  Memory ready
+                </span>
+                <button
+                  onClick={() => { setDeal(null); setMessages([]); setSendStates({}); }}
+                  className="text-xs px-3 py-1.5 rounded-lg border transition-all"
+                  style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
+                  New deal
+                </button>
               </div>
             )}
-            <div className="flex items-center gap-2 flex-wrap">
-              {!seeded ? (
-                <button onClick={() => seedMemory(false)} disabled={seeding}
-                  className="text-sm font-semibold px-4 py-2 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60"
-                  style={{ background: "var(--crimson)", color: "white" }}>
-                  {seeding ? "Loading..." : "Load Gordo Deal"}
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                    style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
-                    Deal loaded
-                  </span>
-                  <button onClick={() => seedMemory(true)} disabled={seeding}
-                    className="text-xs px-3 py-1.5 rounded-lg border transition-all"
-                    style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
-                    {seeding ? "..." : "Reload"}
-                  </button>
-                </div>
-              )}
-              {!seededLaw ? (
-                <button onClick={seedLaw} disabled={seedingLaw}
-                  className="text-sm font-semibold px-4 py-2 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60"
-                  style={{ background: "var(--ink)", color: "var(--cream)" }}>
-                  {seedingLaw ? "Loading..." : "Load AL Law"}
-                </button>
-              ) : (
-                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                  style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
-                  AL Law loaded
-                </span>
-              )}
-              {!seededTimeline ? (
-                <button onClick={seedTimeline} disabled={seedingTimeline}
-                  className="text-sm font-semibold px-4 py-2 rounded-xl transition-all active:scale-[0.98] disabled:opacity-60"
-                  style={{ background: "#0369A1", color: "white" }}>
-                  {seedingTimeline ? "Loading..." : "Load Timelines"}
-                </button>
-              ) : (
-                <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                  style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
-                  Timelines loaded
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
         {/* Tab strip */}
         <div className="flex gap-1 mb-3 flex-shrink-0">
-          {[{ key: "chat", label: "Ask Harriett" }, { key: "memory", label: `Memory (${memories.length})` }].map((t) => (
-            <button key={t.key} onClick={() => { setMemTab(t.key as "chat" | "memory"); if (t.key === "memory") loadMemories(); }}
+          {[
+            { key: "chat", label: "Ask Harriett" },
+            { key: "vendors", label: "Vendors" },
+            { key: "memory", label: `Memory (${memories.length})` },
+          ].map((t) => (
+            <button key={t.key}
+              onClick={() => {
+                setMemTab(t.key as "chat" | "memory" | "vendors");
+                if (t.key === "memory") loadMemories();
+              }}
               className="text-xs font-semibold px-4 py-2 rounded-lg transition-all"
               style={memTab === t.key
                 ? { background: "var(--ink)", color: "var(--cream)" }
@@ -239,12 +394,32 @@ export default function AgentPage() {
           ))}
         </div>
 
-        {memTab === "memory" ? (
+        {memTab === "vendors" ? (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="grid gap-3 pb-4">
+              {VENDORS.map((v) => (
+                <VendorCard key={v.id} vendor={v}
+                  dealAddress={deal?.address ?? ""}
+                  dealCity={deal?.city ?? ""}
+                  dealClosingDate={deal?.closingDate ?? ""}
+                  dealAgent={deal?.listingAgent ?? ""}
+                  onSendMessage={async (content) => {
+                    const res = await fetch("/api/send", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: "whatsapp", content, subject: `Vendor: ${v.name}` }),
+                    });
+                    return (await res.json()).ok === true;
+                  }} />
+              ))}
+            </div>
+          </div>
+        ) : memTab === "memory" ? (
           <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border"
             style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
             {memories.length === 0 ? (
               <div className="flex items-center justify-center h-40">
-                <p className="text-sm" style={{ color: "var(--ink-mid)" }}>No memories loaded. Click "Load Gordo Deal into Harriett's Memory" above.</p>
+                <p className="text-sm" style={{ color: "var(--ink-mid)" }}>No memories loaded.</p>
               </div>
             ) : (
               <div className="divide-y" style={{ borderColor: "var(--cream-border)" }}>
@@ -268,7 +443,7 @@ export default function AgentPage() {
                     Ask Harriett about the 604 Gordo deal.
                   </p>
                   <p className="text-xs mb-5" style={{ color: "var(--ink-mid)" }}>
-                    Load memory first, then ask any question about the transaction, parties, compliance flags, or office procedures.
+                    {autoSeeding ? "Loading Harriett's memory..." : "Ask any question about the transaction, parties, compliance flags, or office procedures."}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {SUGGESTED.map((s) => (
@@ -315,6 +490,34 @@ export default function AgentPage() {
                                 ))}
                               </div>
                             )}
+                            {/* Action chips */}
+                            <div className="flex gap-2 mt-2.5 flex-wrap">
+                              {([
+                                { type: "whatsapp" as const, idle: "Text me this", sent: "Sent via WhatsApp" },
+                                { type: "email" as const, idle: "Email me this", sent: "Sent via email" },
+                              ]).map(({ type, idle, sent }) => {
+                                const state = sendStates[i]?.[type] ?? "idle";
+                                return (
+                                  <button key={type}
+                                    onClick={() => state === "idle" && sendToMe(type, msg.content, i)}
+                                    disabled={state === "loading" || state === "sent"}
+                                    className="text-[11px] px-3 py-1.5 rounded-lg border transition-all disabled:cursor-default"
+                                    style={{
+                                      borderColor: state === "sent" ? "#BBF7D0" : state === "error" ? "#FECACA" : "var(--cream-border)",
+                                      background: state === "sent" ? "#F0FDF4" : state === "error" ? "#FEF2F2" : "var(--cream)",
+                                      color: state === "sent" ? "#166534" : state === "error" ? "var(--crimson)" : "var(--ink-mid)",
+                                    }}>
+                                    {state === "loading" ? "Sending..." : state === "sent" ? sent : state === "error" ? "Failed — retry" : idle}
+                                  </button>
+                                );
+                              })}
+                              <button
+                                onClick={() => setFbPreview(msg.content)}
+                                className="text-[11px] px-3 py-1.5 rounded-lg border transition-all"
+                                style={{ borderColor: "var(--cream-border)", background: "var(--cream)", color: "var(--ink-mid)" }}>
+                                Facebook preview
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -342,7 +545,7 @@ export default function AgentPage() {
             <div className="flex gap-2 flex-shrink-0">
               <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder={seeded ? "Ask Harriett about the Gordo deal..." : "Load memory first, then ask..."}
+                placeholder={autoSeeding ? "Loading memory..." : deal ? `Ask Harriett about ${deal.address}...` : "Ask Harriett..."}
                 disabled={loading}
                 className="flex-1 px-4 py-3 rounded-xl border text-sm outline-none transition-all"
                 style={{ background: "var(--surface)", borderColor: "var(--cream-border)", color: "var(--ink)" }}
@@ -357,7 +560,213 @@ export default function AgentPage() {
             </div>
           </>
         )}
+        </> /* end deal && */
+        )}
       </main>
+
+      {/* Facebook preview modal */}
+      {fbPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(28,24,20,0.6)", backdropFilter: "blur(4px)" }}
+          onClick={() => setFbPreview(null)}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-[500px] overflow-hidden"
+            style={{ background: "#fff" }}
+            onClick={(e) => e.stopPropagation()}>
+            {/* FB chrome */}
+            <div className="px-4 py-3 border-b flex items-center gap-3" style={{ borderColor: "#E4E6EB" }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                style={{ background: "#1877F2" }}>PM</div>
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "#050505" }}>Pritchett-Moore Real Estate</p>
+                <p className="text-xs" style={{ color: "#65676B" }}>Just now &middot; Public</p>
+              </div>
+              <button onClick={() => setFbPreview(null)}
+                className="ml-auto text-lg leading-none px-2"
+                style={{ color: "#65676B" }}>
+                &times;
+              </button>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "#050505" }}>
+                {fbPreview.slice(0, 600)}{fbPreview.length > 600 ? "..." : ""}
+              </p>
+            </div>
+            <div className="px-4 pb-4 flex gap-2">
+              <button
+                onClick={async () => {
+                  const lastIdx = messages.filter(m => m.role === "assistant").length - 1;
+                  await sendToMe("email", fbPreview, lastIdx);
+                  setFbPreview(null);
+                }}
+                className="text-sm px-4 py-2 rounded-lg font-semibold transition-all"
+                style={{ background: "var(--ink)", color: "var(--cream)" }}>
+                Email me this draft
+              </button>
+              <button onClick={() => setFbPreview(null)}
+                className="text-sm px-4 py-2 rounded-lg border transition-all"
+                style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Vendor Card ───────────────────────────────────────────────────────────────
+
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  photographer: { bg: "#F5F3FF", text: "#6D28D9", border: "#DDD6FE" },
+  inspector:    { bg: "#FEF3C7", text: "#92400E", border: "#FDE68A" },
+  title:        { bg: "#F0FDF4", text: "#166534", border: "#BBF7D0" },
+  lender:       { bg: "#F0F9FF", text: "#0369A1", border: "#BAE6FD" },
+  appraiser:    { bg: "#FFF7ED", text: "#9A3412", border: "#FED7AA" },
+  insurance:    { bg: "#FDF4FF", text: "#86198F", border: "#F0ABFC" },
+  deed:         { bg: "#F8FAFC", text: "#475569", border: "#CBD5E1" },
+  other:        { bg: "#F5F0E8", text: "#1C1814", border: "#E8E2D8" },
+};
+
+function VendorCard({ vendor, dealAddress, dealCity, dealClosingDate, dealAgent, onSendMessage }: {
+  vendor: Vendor;
+  dealAddress: string;
+  dealCity: string;
+  dealClosingDate: string;
+  dealAgent: string;
+  onSendMessage: (content: string) => Promise<boolean>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const colors = CATEGORY_COLORS[vendor.category] ?? CATEGORY_COLORS.other;
+
+  async function draftOutreach() {
+    setDrafting(true);
+    try {
+      const res = await fetch("/api/vendor/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vendor: { name: vendor.name, contact: vendor.contact, phone: vendor.phone, email: vendor.email, category: vendor.category },
+          deal: { address: "604 2nd St NW", city: "Gordo, AL 35466", closingDate: "Jun 5, 2026", agent: "Jerrod Hastings" },
+          proposedDates: vendor.freeDates ?? [],
+        }),
+      });
+      const data = await res.json();
+      setDraft(data.sms ?? data.whatsapp ?? data.message ?? "Could not generate draft.");
+    } catch {
+      setDraft("Draft failed. Try again.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  async function sendDraft() {
+    if (!draft) return;
+    setSending(true);
+    const ok = await onSendMessage(draft);
+    setSending(false);
+    if (ok) setSent(true);
+  }
+
+  return (
+    <div className="rounded-xl border overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
+      <button className="w-full text-left px-5 py-4 flex items-center gap-4" onClick={() => setExpanded(!expanded)}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{vendor.name}</p>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: colors.bg, color: colors.text, border: `1px solid ${colors.border}` }}>
+              {VENDOR_LABELS[vendor.category]}
+            </span>
+            {vendor.harriettCanContact && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
+                Harriett can contact
+              </span>
+            )}
+          </div>
+          <p className="text-xs" style={{ color: "var(--ink-mid)" }}>
+            {vendor.contact} &middot; {vendor.phone}
+            {vendor.lastUsed ? ` &middot; Last used ${vendor.lastUsed}` : ""}
+          </p>
+        </div>
+        <svg className={`w-4 h-4 flex-shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
+          style={{ color: "var(--ink-light)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-5 border-t pt-4 space-y-3" style={{ borderColor: "var(--cream-border)" }}>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            {vendor.phone && (
+              <div>
+                <p className="font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--ink-light)", fontSize: "10px" }}>Phone</p>
+                <p style={{ color: "var(--ink)" }}>{vendor.phone}</p>
+              </div>
+            )}
+            {vendor.email && (
+              <div>
+                <p className="font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--ink-light)", fontSize: "10px" }}>Email</p>
+                <p style={{ color: "var(--ink)" }}>{vendor.email}</p>
+              </div>
+            )}
+            {vendor.freeDates && vendor.freeDates.length > 0 && (
+              <div className="col-span-2">
+                <p className="font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--ink-light)", fontSize: "10px" }}>Available dates</p>
+                <div className="flex gap-2 flex-wrap">
+                  {vendor.freeDates.map((d) => (
+                    <span key={d} className="px-2 py-1 rounded-lg text-xs"
+                      style={{ background: "var(--cream)", border: "1px solid var(--cream-border)", color: "var(--ink-mid)" }}>
+                      {d}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {vendor.harriettCanContact && (
+            <div className="space-y-2">
+              {!draft ? (
+                <button onClick={draftOutreach} disabled={drafting}
+                  className="text-xs px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-60"
+                  style={{ background: "var(--ink)", color: "var(--cream)" }}>
+                  {drafting ? "Drafting..." : "Draft outreach message"}
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <div className="p-3 rounded-lg text-xs leading-relaxed whitespace-pre-wrap"
+                    style={{ background: "var(--cream)", border: "1px solid var(--cream-border)", color: "var(--ink)" }}>
+                    {draft}
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={sendDraft} disabled={sending || sent}
+                      className="text-xs px-4 py-2 rounded-lg font-semibold transition-all disabled:opacity-60"
+                      style={{
+                        background: sent ? "#F0FDF4" : "var(--crimson)",
+                        color: sent ? "#166534" : "white",
+                        border: sent ? "1px solid #BBF7D0" : "none",
+                      }}>
+                      {sending ? "Sending..." : sent ? "Sent via WhatsApp" : "Send via WhatsApp"}
+                    </button>
+                    <button onClick={() => { setDraft(null); setSent(false); }}
+                      className="text-xs px-3 py-2 rounded-lg border transition-all"
+                      style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
+                      Redraft
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

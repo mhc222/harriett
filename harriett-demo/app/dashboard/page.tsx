@@ -47,6 +47,7 @@ function DashNav({ user, onSignOut }: { user: HarriettUser; onSignOut: () => voi
               { label: "Calendar",        href: "/calendar" },
               { label: "Transaction",     href: "/demo" },
               { label: "Pre-Listing CMA", href: "/pre-listing" },
+              { label: "Ask Harriett",    href: "/agent" },
             ].map((item) => (
               <Link key={item.href} href={item.href} className="text-sm transition-colors"
                 style={{ color: "#9C9189" }}

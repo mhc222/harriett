@@ -65,7 +65,7 @@ export default function LoginPage() {
 
   function selectAccount(user: HarriettUser) {
     setUser(user);
-    router.push("/dashboard");
+    router.push("/agent");
   }
 
   function handleCreate() {
@@ -129,21 +129,9 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-3">
-                {DEMO_ACCOUNTS.map((user) => (
+                {DEMO_ACCOUNTS.filter((u) => u.id === "jerrod").map((user) => (
                   <AccountCard key={user.id} user={user} onSelect={() => selectAccount(user)} />
                 ))}
-              </div>
-
-              <div className="mt-6 text-center">
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="text-sm transition-colors hover:underline underline-offset-2"
-                  style={{ color: "var(--ink-light)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink-mid)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-light)")}
-                >
-                  Create a new account
-                </button>
               </div>
             </>
           ) : (
