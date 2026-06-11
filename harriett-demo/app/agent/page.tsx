@@ -37,6 +37,30 @@ const SUGGESTED = [
   "What are the FHA loan requirements I should know as a listing agent?",
 ];
 
+function detectChips(text: string): { showSend: boolean; showFacebook: boolean } {
+  const lower = text.toLowerCase();
+  const isShort = text.length < 250;
+  const isDeflection =
+    lower.startsWith("i don't have") ||
+    lower.startsWith("i don't currently") ||
+    lower.startsWith("nothing loaded") ||
+    lower.startsWith("no listings") ||
+    lower.startsWith("i'm not sure") ||
+    lower.startsWith("i wasn't able") ||
+    lower.startsWith("i can't") ||
+    lower.startsWith("i cannot");
+  const isSocial =
+    (lower.includes("just listed") ||
+      lower.includes("just sold") ||
+      lower.includes("new listing") ||
+      lower.includes("for sale") ||
+      lower.includes("listing description") ||
+      lower.includes("mls remarks")) &&
+    text.length > 200;
+  const isSubstantial = !isShort && !isDeflection;
+  return { showSend: isSubstantial, showFacebook: isSocial };
+}
+
 export default function AgentPage() {
   const router = useRouter();
   const [user, setUser] = useState<HarriettUser | null>(null);
@@ -309,34 +333,42 @@ export default function AgentPage() {
                                 ))}
                               </div>
                             )}
-                            {/* Action chips */}
-                            <div className="flex gap-2 mt-2.5 flex-wrap">
-                              {([
-                                { type: "whatsapp" as const, idle: "Text me this", sent: "Sent via WhatsApp" },
-                                { type: "email" as const, idle: "Email me this", sent: "Sent via email" },
-                              ]).map(({ type, idle, sent }) => {
-                                const state = sendStates[i]?.[type] ?? "idle";
-                                return (
-                                  <button key={type}
-                                    onClick={() => state === "idle" && sendToMe(type, msg.content, i)}
-                                    disabled={state === "loading" || state === "sent"}
-                                    className="text-[11px] px-3 py-1.5 rounded-lg border transition-all disabled:cursor-default"
-                                    style={{
-                                      borderColor: state === "sent" ? "#BBF7D0" : state === "error" ? "#FECACA" : "var(--cream-border)",
-                                      background: state === "sent" ? "#F0FDF4" : state === "error" ? "#FEF2F2" : "var(--cream)",
-                                      color: state === "sent" ? "#166534" : state === "error" ? "var(--crimson)" : "var(--ink-mid)",
-                                    }}>
-                                    {state === "loading" ? "Sending..." : state === "sent" ? sent : state === "error" ? "Failed — retry" : idle}
-                                  </button>
-                                );
-                              })}
-                              <button
-                                onClick={() => setFbPreview(msg.content)}
-                                className="text-[11px] px-3 py-1.5 rounded-lg border transition-all"
-                                style={{ borderColor: "var(--cream-border)", background: "var(--cream)", color: "var(--ink-mid)" }}>
-                                Facebook preview
-                              </button>
-                            </div>
+                            {/* Action chips — conditional on response type */}
+                            {(() => {
+                              const { showSend, showFacebook } = detectChips(msg.content);
+                              if (!showSend && !showFacebook) return null;
+                              return (
+                                <div className="flex gap-2 mt-2.5 flex-wrap">
+                                  {showSend && ([
+                                    { type: "whatsapp" as const, idle: "Text me this", sent: "Sent via WhatsApp" },
+                                    { type: "email" as const, idle: "Email me this", sent: "Sent via email" },
+                                  ]).map(({ type, idle, sent }) => {
+                                    const state = sendStates[i]?.[type] ?? "idle";
+                                    return (
+                                      <button key={type}
+                                        onClick={() => state === "idle" && sendToMe(type, msg.content, i)}
+                                        disabled={state === "loading" || state === "sent"}
+                                        className="text-[11px] px-3 py-1.5 rounded-lg border transition-all disabled:cursor-default"
+                                        style={{
+                                          borderColor: state === "sent" ? "#BBF7D0" : state === "error" ? "#FECACA" : "var(--cream-border)",
+                                          background: state === "sent" ? "#F0FDF4" : state === "error" ? "#FEF2F2" : "var(--cream)",
+                                          color: state === "sent" ? "#166534" : state === "error" ? "var(--crimson)" : "var(--ink-mid)",
+                                        }}>
+                                        {state === "loading" ? "Sending..." : state === "sent" ? sent : state === "error" ? "Failed — retry" : idle}
+                                      </button>
+                                    );
+                                  })}
+                                  {showFacebook && (
+                                    <button
+                                      onClick={() => setFbPreview(msg.content)}
+                                      className="text-[11px] px-3 py-1.5 rounded-lg border transition-all"
+                                      style={{ borderColor: "var(--cream-border)", background: "var(--cream)", color: "var(--ink-mid)" }}>
+                                      Facebook preview
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
