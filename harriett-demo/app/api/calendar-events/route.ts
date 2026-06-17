@@ -9,7 +9,6 @@ export async function GET() {
     .from("calendar_events")
     .select("id, deal_id, title, date, type, address, note")
     .eq("office_id", OFFICE_ID)
-    .gte("date", new Date().toISOString().split("T")[0])
     .order("date", { ascending: true })
     .limit(20);
 

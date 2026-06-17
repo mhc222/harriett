@@ -33,11 +33,14 @@ Flags:
     // Persist to Supabase (non-fatal if it fails)
     try {
       const sb = getSupabaseServer();
+      // Use most recent deal for this agent — avoids fragile address string matching
       const { data: dealRow } = await sb
         .from("deals")
         .select("id")
-        .eq("address", deal.address)
+        .eq("agent_id", AGENT_ID)
         .eq("office_id", OFFICE_ID)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .single();
 
       if (dealRow?.id) {
