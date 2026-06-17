@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { searchMemories, addMemories } from "@/app/lib/mem0";
 import { getSupabaseServer } from "@/app/lib/supabase";
 
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 const client = new Anthropic();
 const USER_ID = "jerrod-hastings";
@@ -41,14 +41,31 @@ function escapeXml(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
+async function fetchTwilioMedia(mediaUrl: string, accountSid: string, authToken: string): Promise<{ base64: string; mediaType: string }> {
+  const res = await fetch(mediaUrl, {
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+    },
+  });
+  if (!res.ok) throw new Error(`Media fetch failed: ${res.status}`);
+  const contentType = res.headers.get("content-type") ?? "application/pdf";
+  const buf = await res.arrayBuffer();
+  return { base64: Buffer.from(buf).toString("base64"), mediaType: contentType.split(";")[0].trim() };
+}
+
 export async function POST(req: NextRequest) {
   const text = await req.text();
   const params = new URLSearchParams(text);
   const body = params.get("Body")?.trim();
   const from = params.get("From") ?? "unknown";
   const profileName = params.get("ProfileName") ?? from;
+  const numMedia = parseInt(params.get("NumMedia") ?? "0", 10);
+  const mediaUrl = params.get("MediaUrl0");
+  const mediaType = params.get("MediaContentType0") ?? "application/pdf";
 
-  if (!body) {
+  const hasMedia = numMedia > 0 && !!mediaUrl;
+
+  if (!body && !hasMedia) {
     return twiml("Hey, I didn't catch that. What can I help you with?");
   }
 
@@ -62,13 +79,14 @@ export async function POST(req: NextRequest) {
     agent_id:         AGENT_ID,
     direction:        "inbound",
     channel:          "sms",
-    body,
+    body:             body ?? "[document]",
     status:           "approved",
     harriett_action:  "whatsapp_inbound",
   });
 
   try {
-    const memResult = await searchMemories(body, USER_ID, 8);
+    const queryText = body || "Read this document and summarize the key deal details.";
+    const memResult = await searchMemories(queryText, USER_ID, 8);
     const memories = memResult.results ?? [];
 
     const memoryContext =
@@ -76,13 +94,34 @@ export async function POST(req: NextRequest) {
         ? `## Harriett's memory context:\n\n${memories.map((m, i) => `${i + 1}. ${m.memory}`).join("\n")}`
         : "No relevant memories found for this query.";
 
-    const userMessage = `${memoryContext}\n\n---\n\nMessage from ${profileName}: ${body}`;
+    const contextPrefix = `${memoryContext}\n\n---\n\nMessage from ${profileName}: `;
+
+    // Build message content — include PDF document block if present
+    let userContent: Anthropic.MessageParam["content"];
+
+    if (hasMedia && mediaUrl && (mediaType.includes("pdf") || mediaType.includes("octet-stream"))) {
+      const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+      const authToken  = process.env.TWILIO_AUTH_TOKEN!;
+      const { base64 } = await fetchTwilioMedia(mediaUrl, accountSid, authToken);
+      userContent = [
+        {
+          type: "document" as const,
+          source: { type: "base64" as const, media_type: "application/pdf" as const, data: base64 },
+        },
+        {
+          type: "text",
+          text: `${contextPrefix}${body ?? "I just forwarded you a document. Read it carefully and tell me the key deal details: parties, property address, sale price, loan type, closing date, and any compliance flags (lead paint, FHA, dual agency, RECAD)."}`,
+        },
+      ];
+    } else {
+      userContent = [{ type: "text", text: `${contextPrefix}${body}` }];
+    }
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 512,
       system: SYSTEM,
-      messages: [{ role: "user", content: userMessage }],
+      messages: [{ role: "user", content: userContent }],
     });
 
     let answer = (response.content[0] as Anthropic.TextBlock).text;
@@ -114,7 +153,7 @@ export async function POST(req: NextRequest) {
       }),
       addMemories(
         [
-          { role: "user",      content: body },
+          { role: "user",      content: body ?? "[document]" },
           { role: "assistant", content: answer },
         ],
         USER_ID
