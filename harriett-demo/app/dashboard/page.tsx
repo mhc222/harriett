@@ -166,6 +166,32 @@ const STAGE_COLORS: Record<Deal["stage"], { bg: string; text: string; border: st
 
 function shortDate(d: string) { return d.replace(/, \d{4}$/, ""); }
 
+// ─── LIVE DATA HOOK ──────────────────────────────────────────────────────────
+
+function useLiveData() {
+  const [liveDeals, setLiveDeals] = useState<Deal[]>([]);
+  const [liveEvents, setLiveEvents] = useState<typeof CALENDAR_EVENTS>([]);
+
+  useEffect(() => {
+    function refresh() {
+      fetch("/api/deals")
+        .then((r) => r.json())
+        .then((d) => { if (d.deals?.length) setLiveDeals(d.deals); })
+        .catch(() => {});
+
+      fetch("/api/calendar-events")
+        .then((r) => r.json())
+        .then((d) => { if (d.events?.length) setLiveEvents(d.events); })
+        .catch(() => {});
+    }
+    refresh();
+    const id = setInterval(refresh, 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  return { liveDeals, liveEvents };
+}
+
 // ─── STAT TILES ─────────────────────────────────────────────────────────────
 
 type TileVariant = "neutral" | "urgent" | "good";
@@ -1139,7 +1165,9 @@ function CalendarStrip({ agentName }: { agentName: string }) {
 
 function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("deals");
-  const agentDeals = DEALS.filter((d) => d.stage !== "closed");
+  const { liveDeals } = useLiveData();
+  const allDeals = liveDeals.length > 0 ? liveDeals : DEALS;
+  const agentDeals = allDeals.filter((d) => d.stage !== "closed");
   const myPreListing = PRE_LISTING.filter((p) => p.agent === user.name);
 
   const overdue: UrgencyItem[]  = TODOS.filter((t) => t.roleFor === "agent" && t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
@@ -1216,7 +1244,9 @@ function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => v
 function BrokerView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("deals");
   const [queue, setQueue] = useState(APPROVAL_QUEUE);
-  const activeDeals = DEALS.filter((d) => d.stage !== "closed");
+  const { liveDeals } = useLiveData();
+  const allDeals = liveDeals.length > 0 ? liveDeals : DEALS;
+  const activeDeals = allDeals.filter((d) => d.stage !== "closed");
   function dismiss(id: string) { setQueue((prev) => prev.filter((a) => a.id !== id)); }
 
   const overdue: UrgencyItem[]  = queue.map((q) => ({ id: q.id, text: `Approve message · ${q.address}`, sub: q.urgentFlags[0] }));
