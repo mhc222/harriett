@@ -206,9 +206,21 @@ function DealTable({ deals, showAgent }: { deals: Deal[]; showAgent?: boolean })
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
         </svg>
         <p className="text-sm font-semibold mb-1.5" style={{ color: "var(--ink)" }}>I&apos;m watching your inbox.</p>
-        <p className="text-xs leading-relaxed max-w-xs mx-auto" style={{ color: "var(--ink-mid)" }}>
-          When a new listing or contract comes in, I&apos;ll be on it. You can also upload a contract from the Transaction tool or kick off a Pre-Listing CMA from the nav above.
+        <p className="text-xs leading-relaxed max-w-xs mx-auto mb-4" style={{ color: "var(--ink-mid)" }}>
+          When a new listing or contract comes in, I&apos;ll be on it.
         </p>
+        <div className="flex items-center justify-center gap-2">
+          <Link href="/demo"
+            className="text-xs font-semibold px-4 py-2 rounded-lg transition-all active:scale-[0.98]"
+            style={{ background: "var(--ink)", color: "var(--cream)" }}>
+            I have a deal
+          </Link>
+          <Link href="/pre-listing"
+            className="text-xs font-medium px-4 py-2 rounded-lg border transition-all"
+            style={{ borderColor: "var(--cream-border)", color: "var(--ink-mid)" }}>
+            Build a CMA
+          </Link>
+        </div>
       </div>
     );
   }
@@ -1149,13 +1161,20 @@ function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => v
 
       <div className="overflow-y-auto p-6">
         <div className="max-w-3xl">
-          <div className="mb-5">
-            <h1 className="text-xl font-semibold" style={{ fontFamily: "var(--font-playfair)", color: "var(--ink)" }}>
-              Good morning, {user.name.split(" ")[0]}.
-            </h1>
-            <p className="text-xs mt-1" style={{ color: "var(--ink-mid)" }}>
-              {agentDeals.length} active {agentDeals.length === 1 ? "deal" : "deals"} &middot; Harriett is watching your inbox.
-            </p>
+          <div className="mb-5 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold" style={{ fontFamily: "var(--font-playfair)", color: "var(--ink)" }}>
+                Good morning, {user.name.split(" ")[0]}.
+              </h1>
+              <p className="text-xs mt-1" style={{ color: "var(--ink-mid)" }}>
+                {agentDeals.length} active {agentDeals.length === 1 ? "deal" : "deals"} &middot; Harriett is watching your inbox.
+              </p>
+            </div>
+            <Link href="/demo"
+              className="flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-lg transition-all active:scale-[0.98]"
+              style={{ background: "var(--ink)", color: "var(--cream)" }}>
+              I have a deal
+            </Link>
           </div>
 
           <RightTabs tabs={tabs} active={tab} onSelect={setTab} />
