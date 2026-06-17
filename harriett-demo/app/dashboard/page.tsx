@@ -1194,8 +1194,8 @@ function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => v
     ? liveTodosAll.filter((t) => t.roleFor === "agent")
     : TODOS.filter((t) => t.roleFor === "agent");
   // Only closing-category items are truly overdue — required alone isn't enough
-  const overdue: UrgencyItem[]  = agentTodos.filter((t) => t.category === "closing").map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
-  const dueToday: UrgencyItem[] = agentTodos.filter((t) => t.category !== "closing").map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  const overdue: UrgencyItem[]  = agentTodos.filter((t) => t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  const dueToday: UrgencyItem[] = agentTodos.filter((t) => !t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
   const upcoming: UpcomingItem[] = agentDeals
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address}` }));

@@ -22,15 +22,13 @@ export async function GET() {
     const isOverdue  = dueDate != null && dueDate < today;
     const isDueToday = dueDate === today;
 
+    const category = row.category as string;
     return {
-      id:       row.id as string,
-      text:     row.title as string,
-      sub:      (row.detail as string) ?? "",
-      category: row.category as string,
-      required: row.required as boolean,
-      dueDate:  dueDate ?? undefined,
-      urgent:   isOverdue || (row.category === "closing" && !isDueToday),
-      roleFor:  "agent" as const,
+      id:      row.id as string,
+      text:    row.title as string,
+      sub:     (row.detail as string) ?? "",
+      urgent:  isOverdue || (category === "closing" && !isDueToday),
+      roleFor: "agent" as const,
     };
   });
 
