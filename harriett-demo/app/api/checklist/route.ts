@@ -7,6 +7,35 @@ import type { DealFields } from "../../lib/types";
 import { getSupabaseServer } from "../../lib/supabase";
 import { OFFICE_ID, AGENT_ID, generateAndSaveChecklist } from "../../lib/deal-events";
 
+export async function GET() {
+  try {
+    const sb = getSupabaseServer();
+    const { data: dealRow } = await sb
+      .from("deals")
+      .select("id")
+      .eq("agent_id", AGENT_ID)
+      .eq("office_id", OFFICE_ID)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!dealRow?.id) return NextResponse.json({ items: null });
+
+    const { data: items } = await sb
+      .from("checklist_items")
+      .select("id, category, title, detail, required, completed, due_date, days_from_listing")
+      .eq("deal_id", dealRow.id)
+      .order("due_date", { ascending: true, nullsFirst: false });
+
+    if (!items?.length) return NextResponse.json({ items: null });
+
+    return NextResponse.json({ items });
+  } catch {
+    return NextResponse.json({ items: null });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const deal: DealFields = await request.json();

@@ -656,6 +656,14 @@ export default function HarriettOutput({
   useEffect(() => {
     async function fetchChecklist() {
       try {
+        // Try saved items first — skip Claude call if DB already has them
+        const saved = await fetch("/api/checklist").then((r) => r.json()).catch(() => ({ items: null }));
+        if (saved.items?.length) {
+          setChecklist({ loading: false, data: saved.items, error: null });
+          onChecklistReady?.();
+          return;
+        }
+        // No saved items — generate via Claude
         const res = await fetch("/api/checklist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deal) });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
