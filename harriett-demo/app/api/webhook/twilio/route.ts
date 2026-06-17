@@ -203,28 +203,48 @@ async function writeCalendarEvents(dealId: string, deal: DealFields): Promise<vo
 }
 
 function buildPdfReply(deal: DealFields): string {
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://harriett-demo.vercel.app";
+
   const sellersStr =
-    deal.sellers.length > 0 ? deal.sellers.join(" and ") : "the sellers";
+    deal.sellers.length > 0 ? deal.sellers.join(" & ") : "Sellers TBD";
   const buyersStr =
-    deal.buyers.length > 0 ? deal.buyers.join(" and ") : "the buyers";
+    deal.buyers.length > 0 ? deal.buyers.join(" & ") : "Buyers TBD";
   const price = deal.salePrice
     ? `$${deal.salePrice.toLocaleString()}`
-    : `listed at $${deal.listPrice.toLocaleString()}`;
-  const closing = deal.closingDate
-    ? `closing ${deal.closingDate}`
-    : "closing date not yet set";
+    : `Listed at $${deal.listPrice.toLocaleString()}`;
+  const closing = deal.closingDate ? deal.closingDate : "TBD";
 
   const flags: string[] = [];
   if (deal.flags.leadPaintDisclosure)
-    flags.push("lead paint disclosure required (pre-1978 property)");
-  if (deal.flags.fhaLoan) flags.push("FHA loan — Amendatory Clause needed");
+    flags.push("Lead paint disclosure required (pre-1978)");
+  if (deal.flags.fhaLoan) flags.push("FHA — Amendatory Clause needed");
   if (deal.flags.loanTypeChanged)
-    flags.push("loan type changed mid-transaction — re-execute FHA Amendatory Clause");
+    flags.push("Loan type changed — re-execute FHA Amendatory Clause");
 
-  const flagLine =
-    flags.length > 0 ? ` Compliance note: ${flags.join("; ")}.` : "";
+  const flagLines =
+    flags.length > 0
+      ? `\n\nCompliance:\n${flags.map((f) => `• ${f}`).join("\n")}`
+      : "";
 
-  return `Got it. I've loaded ${deal.address} into the platform. Here's what I see: ${sellersStr} selling to ${buyersStr}, ${closing}, ${price}.${flagLine} I've set up the checklist and calendar. — Harriett`;
+  return [
+    `I've loaded ${deal.address} into the platform. Here's the breakdown:`,
+    ``,
+    `Property: ${deal.address}, ${deal.city}, ${deal.state}`,
+    `Sellers: ${sellersStr}`,
+    `Buyers: ${buyersStr}`,
+    `Price: ${price}`,
+    `Closing: ${closing}`,
+    flagLines,
+    ``,
+    `Checklist and calendar are set up. View the full deal here:`,
+    `${appUrl}/dashboard`,
+    ``,
+    `— Harriett`,
+  ]
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export async function POST(req: NextRequest) {
