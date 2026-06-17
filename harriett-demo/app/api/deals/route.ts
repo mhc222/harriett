@@ -7,7 +7,7 @@ export async function GET() {
   const sb = getSupabaseServer();
   const { data, error } = await sb
     .from("deals")
-    .select("id, address, city, status, list_price, sale_price, closing_date, listing_date, parsed_fields, agent_id")
+    .select("id, address, city, status, list_price, sale_price, closing_date, listing_date, parsed_fields, agent_id, created_at")
     .eq("office_id", OFFICE_ID)
     .neq("status", "cancelled")
     .order("created_at", { ascending: false });

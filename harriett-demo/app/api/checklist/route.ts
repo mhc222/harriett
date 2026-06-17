@@ -46,22 +46,35 @@ Flags:
       if (dealRow?.id) {
         await sb.from("checklist_items").delete().eq("deal_id", dealRow.id);
 
+        const anchorRaw = deal.listingDate ? new Date(deal.listingDate + "T12:00:00") : new Date();
+        const todayD = new Date();
+        const sevenDaysAgo = new Date(todayD.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const anchor = anchorRaw < sevenDaysAgo ? todayD : anchorRaw;
+
         const rows = (result.items ?? []).map((item: {
           category: string;
           title: string;
           detail?: string;
           daysFromListing?: number;
           required?: boolean;
-        }) => ({
-          office_id: OFFICE_ID,
-          deal_id: dealRow.id,
-          agent_id: AGENT_ID,
-          category: item.category,
-          title: item.title,
-          detail: item.detail ?? null,
-          days_from_listing: item.daysFromListing ?? null,
-          required: item.required ?? true,
-        }));
+        }) => {
+          let dueDate: string | null = null;
+          if (item.daysFromListing != null) {
+            const d = new Date(anchor.getTime() + item.daysFromListing * 24 * 60 * 60 * 1000);
+            dueDate = d.toISOString().split("T")[0];
+          }
+          return {
+            office_id: OFFICE_ID,
+            deal_id: dealRow.id,
+            agent_id: AGENT_ID,
+            category: item.category,
+            title: item.title,
+            detail: item.detail ?? null,
+            days_from_listing: item.daysFromListing ?? null,
+            due_date: dueDate,
+            required: item.required ?? true,
+          };
+        });
 
         if (rows.length > 0) {
           const { error } = await sb.from("checklist_items").insert(rows);

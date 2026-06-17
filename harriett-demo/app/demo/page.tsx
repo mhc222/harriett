@@ -6,13 +6,28 @@ import HarriettOutput from "../components/HarriettOutput";
 import AppSidebar from "../components/AppSidebar";
 import type { DealFields } from "../lib/types";
 
-type Stage = "upload" | "parsing" | "ready";
+type Stage = "loading" | "upload" | "parsing" | "ready";
 
 export default function Home() {
-  const [stage, setStage] = useState<Stage>("upload");
+  const [stage, setStage] = useState<Stage>("loading");
   const [overlayActive, setOverlayActive] = useState(false);
   const [deal, setDeal] = useState<DealFields | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+
+  // Auto-load most recent deal from DB on mount — skip upload screen if deal exists
+  useEffect(() => {
+    fetch("/api/deals/latest")
+      .then((r) => r.json())
+      .then(({ deal: latestDeal }) => {
+        if (latestDeal) {
+          setDeal(latestDeal as DealFields);
+          setStage("ready");
+        } else {
+          setStage("upload");
+        }
+      })
+      .catch(() => setStage("upload"));
+  }, []);
 
   async function parseDeal(file?: File) {
     setStage("parsing");

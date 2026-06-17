@@ -14,7 +14,9 @@ Personality: warm, direct, quietly competent. You sound like a sharp local real 
 
 When you have deal info or memory context, be specific: names, dates, dollar amounts. When you don't, say it plainly and offer something useful.
 
-Context: Jerrod has one active deal right now — 604 2nd St NW, Gordo, AL. When he asks about "the listing" or "the deal" without specifying, assume that's what he means.
+Context: Jerrod has one active deal right now. When he asks about "the listing" or "the deal" without specifying, assume that's what he means.
+
+{{DEAL_CONTEXT}}
 
 Alabama rules:
 - Buyer-beware state: buyers arrange and pay for inspections, not sellers
@@ -42,6 +44,74 @@ No em dashes. No bullet lists for conversational answers. Write the way a real p
 
 const OFFICE_ID = "00000000-0000-0000-0000-000000000001";
 const AGENT_ID  = "00000000-0000-0000-0001-000000000002";
+
+async function fetchDealContext(): Promise<string> {
+  try {
+    const sb = getSupabaseServer();
+
+    // Get latest deal with parsed_fields
+    const { data: dealRow } = await sb
+      .from("deals")
+      .select("id, parsed_fields")
+      .eq("office_id", OFFICE_ID)
+      .eq("agent_id", AGENT_ID)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!dealRow?.parsed_fields) return "";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const f = dealRow.parsed_fields as any;
+
+    // Get checklist items for this deal
+    const { data: items } = await sb
+      .from("checklist_items")
+      .select("category, title, completed, due_date, required")
+      .eq("deal_id", dealRow.id)
+      .order("due_date", { ascending: true });
+
+    const pending = (items ?? []).filter((i) => !i.completed);
+    const done    = (items ?? []).filter((i) => i.completed);
+
+    const today = new Date().toISOString().split("T")[0];
+    const overdue  = pending.filter((i) => i.due_date && i.due_date < today);
+    const thisWeek = pending.filter((i) => {
+      if (!i.due_date) return false;
+      const d = new Date(i.due_date + "T12:00:00");
+      const diff = (d.getTime() - new Date(today + "T12:00:00").getTime()) / 86400000;
+      return diff >= 0 && diff <= 7;
+    });
+
+    let out = `## Current deal: ${f.address}, ${f.city ?? ""} AL\n`;
+    out += `- Sellers: ${(f.sellers ?? []).join(", ") || "unknown"}\n`;
+    out += `- Buyers: ${(f.buyers ?? []).join(", ") || "unknown"}\n`;
+    out += `- List price: $${(f.listPrice ?? 0).toLocaleString()}\n`;
+    if (f.salePrice) out += `- Sale price: $${f.salePrice.toLocaleString()}\n`;
+    out += `- Listing date: ${f.listingDate ?? "unknown"}\n`;
+    out += `- Target closing: ${f.closingDate ?? "unknown"}\n`;
+    out += `- Loan type: ${f.loanType ?? "unknown"}\n`;
+    if (f.yearBuilt) out += `- Year built: ${f.yearBuilt}\n`;
+    out += `- Lead paint disclosure required: ${f.flags?.leadPaintDisclosure ? "YES" : "no"}\n`;
+
+    if (overdue.length > 0) {
+      out += `\nOVERDUE checklist items (${overdue.length}):\n`;
+      overdue.forEach((i) => { out += `- [OVERDUE ${i.due_date}] ${i.title}\n`; });
+    }
+    if (thisWeek.length > 0) {
+      out += `\nDue this week (${thisWeek.length}):\n`;
+      thisWeek.forEach((i) => { out += `- [${i.due_date}] ${i.title}\n`; });
+    }
+    if (items && items.length > 0) {
+      out += `\nChecklist summary: ${done.length}/${items.length} items complete, ${pending.length} pending.\n`;
+    }
+
+    return out;
+  } catch {
+    return "";
+  }
+}
 
 async function fetchVendorContext(): Promise<string> {
   try {
@@ -87,9 +157,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No question" }, { status: 400 });
   }
 
-  // Fetch vendor context and memories in parallel
-  const [vendorContext, memResult] = await Promise.all([
+  // Fetch vendor context, deal context, and memories in parallel
+  const [vendorContext, dealContext, memResult] = await Promise.all([
     fetchVendorContext(),
+    fetchDealContext(),
     searchMemories(question, USER_ID, 8),
   ]);
   const memories = memResult.results ?? [];
@@ -100,7 +171,9 @@ export async function POST(req: NextRequest) {
 
   const userMessage = `${memoryContext}\n\n---\n\nQuestion: ${question}`;
 
-  const system = SYSTEM.replace("{{VENDOR_CONTEXT}}", vendorContext);
+  const system = SYSTEM
+    .replace("{{VENDOR_CONTEXT}}", vendorContext)
+    .replace("{{DEAL_CONTEXT}}", dealContext);
 
   const messages: Anthropic.MessageParam[] = [
     ...history.slice(-6), // keep last 6 turns for context

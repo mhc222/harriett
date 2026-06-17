@@ -1115,10 +1115,10 @@ const EVENT_TYPE_STYLES: Record<string, { bg: string; text: string; border: stri
   listing:     { bg: "var(--cream)", text: "var(--ink-mid)", border: "var(--cream-border)", label: "Listing" },
 };
 
-function CalendarStrip({ agentName }: { agentName: string }) {
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = CALENDAR_EVENTS
-    .filter((e) => e.date >= today && (agentName === "all" || e.agent === agentName))
+function CalendarStrip({ agentName, liveEvents }: { agentName: string; liveEvents: typeof CALENDAR_EVENTS }) {
+  const events = liveEvents.length > 0 ? liveEvents : CALENDAR_EVENTS;
+  const upcoming = events
+    .filter((e) => agentName === "all" || e.agent === agentName)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 5);
 
@@ -1184,7 +1184,7 @@ function CalendarStrip({ agentName }: { agentName: string }) {
 
 function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("deals");
-  const { liveDeals } = useLiveData();
+  const { liveDeals, liveEvents } = useLiveData();
   const liveTodosAll = useLiveTodos();
   const allDeals = liveDeals.length > 0 ? liveDeals : DEALS;
   const agentDeals = allDeals.filter((d) => d.stage !== "closed");
@@ -1193,8 +1193,9 @@ function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => v
   const agentTodos = liveTodosAll.length > 0
     ? liveTodosAll.filter((t) => t.roleFor === "agent")
     : TODOS.filter((t) => t.roleFor === "agent");
-  const overdue: UrgencyItem[]  = agentTodos.filter((t) => t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
-  const dueToday: UrgencyItem[] = agentTodos.filter((t) => !t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  // Only closing-category items are truly overdue — required alone isn't enough
+  const overdue: UrgencyItem[]  = agentTodos.filter((t) => t.category === "closing").map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  const dueToday: UrgencyItem[] = agentTodos.filter((t) => t.category !== "closing").map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
   const upcoming: UpcomingItem[] = agentDeals
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address}` }));
@@ -1234,7 +1235,7 @@ function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => v
             <>
               <DeadlineChips deals={agentDeals} />
               <DealTable deals={agentDeals} />
-              <CalendarStrip agentName={user.name} />
+              <CalendarStrip agentName={user.name} liveEvents={liveEvents} />
             </>
           )}
           {tab === "pre-listing" && <PreListingList items={myPreListing} />}
