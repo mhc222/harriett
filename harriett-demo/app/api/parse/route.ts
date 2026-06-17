@@ -7,9 +7,45 @@ import { DEMO_TRANSACTION } from "../../lib/demo-transaction";
 import { getSupabaseServer } from "../../lib/supabase";
 import { seedDealMemory } from "../../lib/mem0";
 import type { DealFields } from "../../lib/types";
+import { writeCalendarEvents, OFFICE_ID, AGENT_ID } from "../../lib/deal-events";
 
 // Phase 1: single agent. Phase 2: derive from authenticated session.
 const DEFAULT_USER_ID = "jerrod-hastings";
+
+async function writeDealRow(
+  deal: DealFields,
+  source: "manual" | "email_parse"
+): Promise<string | null> {
+  const sb = getSupabaseServer();
+  const status = deal.salePrice ? "under_contract" : "listing_active";
+
+  // Delete any prior row for this address so re-running the demo stays clean.
+  await sb.from("deals").delete().eq("address", deal.address).eq("office_id", OFFICE_ID);
+
+  const { data, error } = await sb
+    .from("deals")
+    .insert({
+      office_id: OFFICE_ID,
+      agent_id: AGENT_ID,
+      address: deal.address,
+      city: deal.city,
+      state: deal.state,
+      zip: deal.zip,
+      county: deal.county ?? null,
+      status,
+      list_price: deal.listPrice,
+      sale_price: deal.salePrice ?? null,
+      listing_date: deal.listingDate || null,
+      closing_date: deal.closingDate || null,
+      parsed_fields: deal as unknown as Record<string, unknown>,
+      source,
+    })
+    .select("id")
+    .single();
+
+  if (error) console.error("[parse] deal row write failed:", error.message);
+  return data?.id ?? null;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +55,8 @@ export async function POST(request: NextRequest) {
       const body = await request.json();
 
       if (body.demoMode) {
+        const demoDealId = await writeDealRow(DEMO_TRANSACTION, "manual");
+        if (demoDealId) await writeCalendarEvents(demoDealId, DEMO_TRANSACTION);
         return NextResponse.json(DEMO_TRANSACTION);
       }
 
@@ -38,9 +76,11 @@ export async function POST(request: NextRequest) {
         const raw = await callClaudeWithPdf(PARSE_SYSTEM, pdfBase64);
         const deal: DealFields = JSON.parse(raw);
 
+        const dealId = await writeDealRow(deal, "email_parse");
         await Promise.all([
           sb.storage.from("pdf-uploads").remove([body.storagePath]),
           seedDealMemory(deal, DEFAULT_USER_ID),
+          dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
         ]);
 
         return NextResponse.json(deal);
@@ -66,7 +106,11 @@ export async function POST(request: NextRequest) {
       const pdfBase64 = Buffer.from(arrayBuffer).toString("base64");
       const raw = await callClaudeWithPdf(PARSE_SYSTEM, pdfBase64);
       const deal: DealFields = JSON.parse(raw);
-      await seedDealMemory(deal, DEFAULT_USER_ID);
+      const dealId = await writeDealRow(deal, "email_parse");
+      await Promise.all([
+        seedDealMemory(deal, DEFAULT_USER_ID),
+        dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
+      ]);
       return NextResponse.json(deal);
     }
 

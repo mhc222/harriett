@@ -5,14 +5,12 @@ import { getSupabaseServer } from "@/app/lib/supabase";
 import { callClaudeWithPdf } from "@/app/lib/claude";
 import { PARSE_SYSTEM } from "@/app/lib/prompts";
 import type { DealFields } from "@/app/lib/types";
+import { writeCalendarEvents, OFFICE_ID, AGENT_ID } from "@/app/lib/deal-events";
 
 export const maxDuration = 90;
 
 const client = new Anthropic();
 const USER_ID = "jerrod-hastings";
-
-const OFFICE_ID = "00000000-0000-0000-0000-000000000001";
-const AGENT_ID = "00000000-0000-0000-0001-000000000002"; // Jerrod Hastings
 
 const SYSTEM = `You are Harriett, an AI transaction coordinator for Pritchett-Moore Real Estate in Tuscaloosa, Alabama. You are speaking with Tanner Ashcraft (Associate Broker) or Jerrod Hastings (agent) over WhatsApp.
 
@@ -53,6 +51,7 @@ When the agent asks about vendors, speak as if you know these people. Recommend 
 - Sign off as "— Harriett" when closing a reply.
 - You can send calendar invites for closings, inspections, photo shoots, and any deal milestone. When you do, say "I've sent a calendar invite to your email."
 - If the agent asks you to send a calendar invite or schedule something, include EXACTLY this tag at the end of your response on its own line: [SEND_INVITE:eventType|address|YYYY-MM-DD] — e.g. [SEND_INVITE:Closing|604 2nd St NW Gordo AL|2026-06-05]
+- Context awareness: Jerrod has one active deal right now (604 2nd St NW, Gordo, AL). When he asks a question without specifying a property, assume he means this deal. Don't ask "which property?" — just answer. If something changes and there are multiple deals, ask only if genuinely ambiguous.
 
 ## Proactive behavior
 When a deal is active, offer next steps without being asked. Suggest: scheduling photos, booking the inspector, sending reminder texts or emails to buyers/sellers, drafting the Just Listed copy, or flagging compliance items. Ask whether they prefer to send reminders by text or email. Be helpful, not pushy.`;
@@ -146,87 +145,6 @@ async function writeDealRow(
   return data?.id ?? null;
 }
 
-async function writeCalendarEvents(dealId: string, deal: DealFields): Promise<void> {
-  const sb = getSupabaseServer();
-  const events: Array<{
-    office_id: string;
-    deal_id: string;
-    agent_id: string;
-    title: string;
-    date: string;
-    type: string;
-    address: string;
-    note?: string;
-  }> = [];
-
-  const addr = deal.address;
-
-  // Closing date and inspection deadline
-  if (deal.closingDate) {
-    events.push({
-      office_id: OFFICE_ID,
-      deal_id: dealId,
-      agent_id: AGENT_ID,
-      title: "Closing",
-      date: deal.closingDate,
-      type: "closing",
-      address: addr,
-      note: `$${deal.salePrice?.toLocaleString() ?? deal.listPrice.toLocaleString()}`,
-    });
-
-    // Inspection deadline: closing_date minus 10 days (Alabama buyer-beware default)
-    const closingMs = new Date(deal.closingDate).getTime();
-    const inspDate = new Date(closingMs - 10 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
-    events.push({
-      office_id: OFFICE_ID,
-      deal_id: dealId,
-      agent_id: AGENT_ID,
-      title: "Inspection Deadline",
-      date: inspDate,
-      type: "inspection",
-      address: addr,
-      note: "Buyer arranges and pays for inspection (Alabama buyer-beware)",
-    });
-  }
-
-  // Listing date
-  if (deal.listingDate) {
-    events.push({
-      office_id: OFFICE_ID,
-      deal_id: dealId,
-      agent_id: AGENT_ID,
-      title: "Listing Active",
-      date: deal.listingDate,
-      type: "listing",
-      address: addr,
-    });
-  }
-
-  // Lead paint 10-day window (same deadline as inspection for pre-1978 properties)
-  if (deal.flags?.leadPaintDisclosure && deal.closingDate) {
-    const closingMs = new Date(deal.closingDate).getTime();
-    const leadEnd = new Date(closingMs - 10 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
-    events.push({
-      office_id: OFFICE_ID,
-      deal_id: dealId,
-      agent_id: AGENT_ID,
-      title: "Lead Paint 10-Day Window Ends",
-      date: leadEnd,
-      type: "deadline",
-      address: addr,
-      note: "Pre-1978 property — federal 10-day lead paint inspection window",
-    });
-  }
-
-  if (events.length > 0) {
-    const { error } = await sb.from("calendar_events").insert(events);
-    if (error) console.error("[webhook] calendar_events write failed:", error.message);
-  }
-}
 
 function buildPdfReply(deal: DealFields): string {
   const appUrl =

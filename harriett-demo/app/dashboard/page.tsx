@@ -192,6 +192,19 @@ function useLiveData() {
   return { liveDeals, liveEvents };
 }
 
+function useLiveTodos() {
+  const [liveTodos, setLiveTodos] = useState<TodoItem[]>([]);
+
+  useEffect(() => {
+    fetch("/api/todos")
+      .then((r) => r.json())
+      .then((d) => { if (d.todos?.length) setLiveTodos(d.todos); })
+      .catch(() => {});
+  }, []);
+
+  return liveTodos;
+}
+
 // ─── STAT TILES ─────────────────────────────────────────────────────────────
 
 type TileVariant = "neutral" | "urgent" | "good";
@@ -744,19 +757,25 @@ function ActivityFeed({ items, limit }: { items: ActivityItem[]; limit?: number 
 // ─── TODO LIST (sidebar) ─────────────────────────────────────────────────────
 
 function SidebarTodos({ role }: { role: "broker" | "agent" | "coordinator" }) {
-  const [todos, setTodos] = useState<TodoItem[]>(TODOS.filter((t) => t.roleFor === role));
-  if (todos.length === 0) return null;
+  const liveTodos = useLiveTodos();
+  const staticFallback = TODOS.filter((t) => t.roleFor === role);
+  const source = liveTodos.length > 0 ? liveTodos.filter((t) => t.roleFor === role) : staticFallback;
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  useEffect(() => { setTodos(source); }, [liveTodos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Initialise from static data on first render before the fetch resolves
+  const displayTodos = todos.length > 0 ? todos : staticFallback;
+  if (displayTodos.length === 0) return null;
   return (
     <div>
       <div className="flex items-center gap-2 mb-2.5">
         <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ink)" }}>My To-Dos</p>
         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
           style={{ background: "#FEF2F2", color: "var(--crimson)", border: "1px solid #FECACA" }}>
-          {todos.length}
+          {displayTodos.length}
         </span>
       </div>
       <div className="rounded-xl border overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--cream-border)" }}>
-        {todos.map((t) => (
+        {displayTodos.map((t) => (
           <div key={t.id} className="flex items-start gap-2.5 px-3 py-2.5 border-b last:border-0"
             style={{ borderColor: "var(--cream-border)" }}>
             <button
@@ -1166,12 +1185,16 @@ function CalendarStrip({ agentName }: { agentName: string }) {
 function AgentView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => void }) {
   const [tab, setTab] = useState("deals");
   const { liveDeals } = useLiveData();
+  const liveTodosAll = useLiveTodos();
   const allDeals = liveDeals.length > 0 ? liveDeals : DEALS;
   const agentDeals = allDeals.filter((d) => d.stage !== "closed");
   const myPreListing = PRE_LISTING.filter((p) => p.agent === user.name);
 
-  const overdue: UrgencyItem[]  = TODOS.filter((t) => t.roleFor === "agent" && t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
-  const dueToday: UrgencyItem[] = TODOS.filter((t) => t.roleFor === "agent" && !t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  const agentTodos = liveTodosAll.length > 0
+    ? liveTodosAll.filter((t) => t.roleFor === "agent")
+    : TODOS.filter((t) => t.roleFor === "agent");
+  const overdue: UrgencyItem[]  = agentTodos.filter((t) => t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  const dueToday: UrgencyItem[] = agentTodos.filter((t) => !t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
   const upcoming: UpcomingItem[] = agentDeals
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address}` }));
@@ -1245,12 +1268,16 @@ function BrokerView({ user, onSignOut }: { user: HarriettUser; onSignOut: () => 
   const [tab, setTab] = useState("deals");
   const [queue, setQueue] = useState(APPROVAL_QUEUE);
   const { liveDeals } = useLiveData();
+  const liveTodosAll = useLiveTodos();
   const allDeals = liveDeals.length > 0 ? liveDeals : DEALS;
   const activeDeals = allDeals.filter((d) => d.stage !== "closed");
   function dismiss(id: string) { setQueue((prev) => prev.filter((a) => a.id !== id)); }
 
+  const brokerTodos = liveTodosAll.length > 0
+    ? liveTodosAll.filter((t) => t.roleFor === "broker")
+    : TODOS.filter((t) => t.roleFor === "broker");
   const overdue: UrgencyItem[]  = queue.map((q) => ({ id: q.id, text: `Approve message · ${q.address}`, sub: q.urgentFlags[0] }));
-  const dueToday: UrgencyItem[] = TODOS.filter((t) => t.roleFor === "broker" && t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
+  const dueToday: UrgencyItem[] = brokerTodos.filter((t) => t.urgent).map((t) => ({ id: t.id, text: t.text, sub: t.sub }));
   const upcoming: UpcomingItem[] = activeDeals
     .filter((d) => d.stage !== "listing-active")
     .map((d) => ({ key: d.id, date: shortDate(d.closingDate), text: `Closing · ${d.address} · ${d.agent}` }));

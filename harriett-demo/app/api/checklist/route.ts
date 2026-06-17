@@ -4,6 +4,8 @@ import { callClaude } from "../../lib/claude";
 export const maxDuration = 60;
 import { CHECKLIST_SYSTEM } from "../../lib/prompts";
 import type { DealFields } from "../../lib/types";
+import { getSupabaseServer } from "../../lib/supabase";
+import { OFFICE_ID, AGENT_ID } from "../../lib/deal-events";
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +29,50 @@ Flags:
 
     const raw = await callClaude(CHECKLIST_SYSTEM, userMessage, 4096);
     const result = JSON.parse(raw);
+
+    // Persist checklist items to Supabase
+    try {
+      const sb = getSupabaseServer();
+
+      // Look up the deal ID by address (deal was already written by parse route)
+      const { data: dealRow } = await sb
+        .from("deals")
+        .select("id")
+        .eq("address", deal.address)
+        .eq("office_id", OFFICE_ID)
+        .single();
+
+      if (dealRow?.id) {
+        // Delete any prior checklist for this deal (demo re-runs)
+        await sb.from("checklist_items").delete().eq("deal_id", dealRow.id);
+
+        const rows = (result.items ?? []).map((item: {
+          category: string;
+          title: string;
+          detail?: string;
+          daysFromListing?: number;
+          required?: boolean;
+        }) => ({
+          office_id: OFFICE_ID,
+          deal_id: dealRow.id,
+          agent_id: AGENT_ID,
+          category: item.category,
+          title: item.title,
+          detail: item.detail ?? null,
+          days_from_listing: item.daysFromListing ?? null,
+          required: item.required ?? true,
+        }));
+
+        if (rows.length > 0) {
+          const { error } = await sb.from("checklist_items").insert(rows);
+          if (error) console.error("[checklist] checklist_items write failed:", error.message);
+        }
+      }
+    } catch (dbErr) {
+      // Non-fatal: checklist still returns to the client even if DB write fails
+      console.error("[checklist] Supabase write error:", dbErr);
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     console.error("checklist error", err);

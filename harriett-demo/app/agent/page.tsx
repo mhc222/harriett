@@ -207,12 +207,14 @@ export default function AgentPage() {
               <p className="text-xs" style={{ color: "var(--ink-mid)" }}>{user?.title ?? "Associate Broker"} &middot; Pritchett-Moore Real Estate</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-              style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
-              {memories.length > 0 ? `${memories.length} memories` : "No memories yet"}
-            </span>
-          </div>
+          {memories.length > 0 && (
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                style={{ background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>
+                {memories.length} memories
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Tab strip */}
