@@ -1,4 +1,6 @@
 import { getSupabaseServer } from "./supabase";
+import { callClaude } from "./claude";
+import { CHECKLIST_SYSTEM } from "./prompts";
 import type { DealFields } from "./types";
 
 export const OFFICE_ID = "00000000-0000-0000-0000-000000000001";
@@ -83,5 +85,51 @@ export async function writeCalendarEvents(dealId: string, deal: DealFields): Pro
   if (events.length > 0) {
     const { error } = await sb.from("calendar_events").insert(events);
     if (error) console.error("[deal-events] calendar_events write failed:", error.message);
+  }
+}
+
+export async function generateAndSaveChecklist(dealId: string, deal: DealFields): Promise<void> {
+  const userMessage = `Generate the transaction coordination checklist for this deal:
+
+Property: ${deal.address}, ${deal.city}, AL ${deal.zip}
+Listing agent: ${deal.listingAgent}, ${deal.brokerage}
+Sellers: ${deal.sellers.join(" and ")}
+List price: $${deal.listPrice.toLocaleString()}
+Listing date: ${deal.listingDate}
+Target close: ${deal.closingDate}
+Property: ${deal.propertyType}, ${deal.bedBath}${deal.sqft ? `, ${deal.sqft} sq ft` : ""}${deal.yearBuilt ? `, built ${deal.yearBuilt}` : ""}
+
+Flags:
+- Lead paint disclosure required: ${deal.flags.leadPaintDisclosure}
+- RECAD required: ${deal.flags.recadRequired}
+- Alabama buyer-beware: ${deal.flags.buyerBeware}
+- Relocation company involved: ${deal.flags.relocationCompany}`;
+
+  const raw = await callClaude(CHECKLIST_SYSTEM, userMessage, 4096);
+  const result = JSON.parse(raw);
+
+  const sb = getSupabaseServer();
+  await sb.from("checklist_items").delete().eq("deal_id", dealId);
+
+  const rows = (result.items ?? []).map((item: {
+    category: string;
+    title: string;
+    detail?: string;
+    daysFromListing?: number;
+    required?: boolean;
+  }) => ({
+    office_id: OFFICE_ID,
+    deal_id: dealId,
+    agent_id: AGENT_ID,
+    category: item.category,
+    title: item.title,
+    detail: item.detail ?? null,
+    days_from_listing: item.daysFromListing ?? null,
+    required: item.required ?? true,
+  }));
+
+  if (rows.length > 0) {
+    const { error } = await sb.from("checklist_items").insert(rows);
+    if (error) console.error("[deal-events] checklist_items write failed:", error.message);
   }
 }

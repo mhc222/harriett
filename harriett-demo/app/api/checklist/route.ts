@@ -5,7 +5,7 @@ export const maxDuration = 60;
 import { CHECKLIST_SYSTEM } from "../../lib/prompts";
 import type { DealFields } from "../../lib/types";
 import { getSupabaseServer } from "../../lib/supabase";
-import { OFFICE_ID, AGENT_ID } from "../../lib/deal-events";
+import { OFFICE_ID, AGENT_ID, generateAndSaveChecklist } from "../../lib/deal-events";
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,11 +30,9 @@ Flags:
     const raw = await callClaude(CHECKLIST_SYSTEM, userMessage, 4096);
     const result = JSON.parse(raw);
 
-    // Persist checklist items to Supabase
+    // Persist to Supabase (non-fatal if it fails)
     try {
       const sb = getSupabaseServer();
-
-      // Look up the deal ID by address (deal was already written by parse route)
       const { data: dealRow } = await sb
         .from("deals")
         .select("id")
@@ -43,7 +41,6 @@ Flags:
         .single();
 
       if (dealRow?.id) {
-        // Delete any prior checklist for this deal (demo re-runs)
         await sb.from("checklist_items").delete().eq("deal_id", dealRow.id);
 
         const rows = (result.items ?? []).map((item: {
@@ -69,7 +66,6 @@ Flags:
         }
       }
     } catch (dbErr) {
-      // Non-fatal: checklist still returns to the client even if DB write fails
       console.error("[checklist] Supabase write error:", dbErr);
     }
 

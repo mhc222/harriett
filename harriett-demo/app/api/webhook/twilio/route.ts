@@ -5,7 +5,7 @@ import { getSupabaseServer } from "@/app/lib/supabase";
 import { callClaudeWithPdf } from "@/app/lib/claude";
 import { PARSE_SYSTEM } from "@/app/lib/prompts";
 import type { DealFields } from "@/app/lib/types";
-import { writeCalendarEvents, OFFICE_ID, AGENT_ID } from "@/app/lib/deal-events";
+import { writeCalendarEvents, generateAndSaveChecklist, OFFICE_ID, AGENT_ID } from "@/app/lib/deal-events";
 
 export const maxDuration = 90;
 
@@ -260,6 +260,7 @@ export async function POST(req: NextRequest) {
 
           await Promise.all([
             dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
+            dealId ? generateAndSaveChecklist(dealId, deal) : Promise.resolve(),
             seedDealMemory(deal, USER_ID),
           ]);
 
