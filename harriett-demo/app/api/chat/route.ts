@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { searchMemories } from "@/app/lib/mem0";
+import { getSupabaseServer } from "@/app/lib/supabase";
 
 export const maxDuration = 60;
 
@@ -22,11 +23,7 @@ Alabama rules:
 - FHA loans need the FHA Amendatory Clause executed by all parties
 - Pricing and fiduciary advice always goes to the agent to review first
 
-Your vendor network (speak about these as if you know them personally):
-Title: North River Title — Brittany Newton, (205) 345-5310. Jerrod's go-to.
-Inspectors: A B Home Inspections (same-day reporting), Warrior Home Inspections LLC, Noble Home Inspection LLC.
-Photographers: Crimson Homes Photography (twilight shots), Central Alabama Photography and Video (drone + Matterport 3D), Sabrina Harless Photography.
-Lenders: First Federal Bank (used on the Gordo deal), Renasant Bank, Hometown Lenders.
+{{VENDOR_CONTEXT}}
 
 What you CAN do (say yes and offer to help):
 - Contact photographers and ask about availability, email them and copy the agent
@@ -43,6 +40,46 @@ No em dashes. No bullet lists for conversational answers. Write the way a real p
 
 
 
+const OFFICE_ID = "00000000-0000-0000-0000-000000000001";
+const AGENT_ID  = "00000000-0000-0000-0001-000000000002";
+
+async function fetchVendorContext(): Promise<string> {
+  try {
+    const sb = getSupabaseServer();
+    const { data } = await sb
+      .from("vendors")
+      .select("type, name, contact, phone, email, notes, preferred")
+      .eq("agent_id", AGENT_ID)
+      .eq("office_id", OFFICE_ID)
+      .order("preferred", { ascending: false })
+      .order("type")
+      .order("name");
+
+    if (!data?.length) return "No vendors on file yet.";
+
+    const byType: Record<string, string[]> = {};
+    for (const v of data) {
+      const type = v.type as string;
+      if (!byType[type]) byType[type] = [];
+      const parts = [v.name as string];
+      if (v.contact) parts.push(v.contact as string);
+      if (v.phone)   parts.push(v.phone as string);
+      if (v.email)   parts.push(v.email as string);
+      if (v.notes)   parts.push(`(${v.notes})`);
+      if (v.preferred) parts.push("[preferred]");
+      byType[type].push(parts.join(", "));
+    }
+
+    const lines = Object.entries(byType).map(([type, vendors]) =>
+      `${type.charAt(0).toUpperCase() + type.slice(1)}:\n${vendors.map(v => `- ${v}`).join("\n")}`
+    );
+
+    return `Your vendor network for Jerrod Hastings (speak about these as if you know them personally — recommend preferred ones by name):\n\n${lines.join("\n\n")}`;
+  } catch {
+    return "Vendor list unavailable.";
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { question, history = [] } = await req.json();
 
@@ -50,8 +87,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No question" }, { status: 400 });
   }
 
-  // Retrieve relevant memories
-  const memResult = await searchMemories(question, USER_ID, 8);
+  // Fetch vendor context and memories in parallel
+  const [vendorContext, memResult] = await Promise.all([
+    fetchVendorContext(),
+    searchMemories(question, USER_ID, 8),
+  ]);
   const memories = memResult.results ?? [];
 
   const memoryContext = memories.length > 0
@@ -59,6 +99,8 @@ export async function POST(req: NextRequest) {
     : "No relevant memories found for this query.";
 
   const userMessage = `${memoryContext}\n\n---\n\nQuestion: ${question}`;
+
+  const system = SYSTEM.replace("{{VENDOR_CONTEXT}}", vendorContext);
 
   const messages: Anthropic.MessageParam[] = [
     ...history.slice(-6), // keep last 6 turns for context
@@ -68,7 +110,7 @@ export async function POST(req: NextRequest) {
   const response = await client.messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 1024,
-    system: SYSTEM,
+    system,
     messages,
   });
 
