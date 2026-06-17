@@ -325,7 +325,7 @@ export async function POST(req: NextRequest) {
       });
 
       return twiml(
-        "Got your PDF. Harriett is reading through it now — I'll send you the details in a moment."
+        "Got your PDF. I'm reading through it now and will send you the details in a moment."
       );
     }
 
