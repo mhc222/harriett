@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { searchMemories, addMemories, seedDealMemory } from "@/app/lib/mem0";
 import { getSupabaseServer } from "@/app/lib/supabase";
@@ -30,6 +30,25 @@ Rules:
 - Sign off as "Harriett" when closing a reply.
 - You can send calendar invites for closings, inspections, photo shoots, and any deal milestone. When you do, say "I've sent a calendar invite to your email" in your reply.
 - If the agent asks you to send a calendar invite or schedule something, include EXACTLY this tag at the end of your response on its own line: [SEND_INVITE:eventType|address|YYYY-MM-DD] — e.g. [SEND_INVITE:Closing|604 2nd St NW Gordo AL|2026-06-05]`;
+
+async function sendWhatsApp(to: string, body: string): Promise<void> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID!;
+  const authToken = process.env.TWILIO_AUTH_TOKEN!;
+  const from = process.env.TWILIO_WHATSAPP_FROM!; // e.g. whatsapp:+14155238886
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({ From: from, To: to, Body: body }).toString(),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("[twilio] sendWhatsApp failed:", err);
+  }
+}
 
 function twiml(body: string): NextResponse {
   const xml = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(body)}</Message></Response>`;
@@ -216,9 +235,22 @@ export async function POST(req: NextRequest) {
   const profileName = params.get("ProfileName") ?? from;
   const numMedia = parseInt(params.get("NumMedia") ?? "0", 10);
   const mediaUrl = params.get("MediaUrl0");
-  const mediaType = params.get("MediaContentType0") ?? "application/pdf";
+  const mediaType = params.get("MediaContentType0") ?? "";
+
+  console.log("[twilio-webhook] params:", {
+    From: from,
+    Body: body,
+    NumMedia: numMedia,
+    MediaUrl0: mediaUrl,
+    MediaContentType0: mediaType,
+  });
 
   const hasMedia = numMedia > 0 && !!mediaUrl;
+  // Accept pdf, octet-stream, or any document type Twilio/WhatsApp might send
+  const isPdf =
+    mediaType.includes("pdf") ||
+    mediaType.includes("octet-stream") ||
+    (hasMedia && (mediaUrl?.toLowerCase().includes(".pdf") ?? false));
 
   if (!body && !hasMedia) {
     return twiml("Hey, I didn't catch that. What can I help you with?");
@@ -239,52 +271,62 @@ export async function POST(req: NextRequest) {
 
   try {
     // PDF parse-and-store path
-    if (
-      hasMedia &&
-      mediaUrl &&
-      (mediaType.includes("pdf") || mediaType.includes("octet-stream"))
-    ) {
+    // Respond immediately so Twilio doesn't time out (PDF parse via Claude takes 20-40s).
+    // after() runs the heavy work after the response is sent, then sends the real reply
+    // back via Twilio REST API.
+    if (hasMedia && mediaUrl && isPdf) {
       const accountSid = process.env.TWILIO_ACCOUNT_SID!;
       const authToken = process.env.TWILIO_AUTH_TOKEN!;
-      const { base64 } = await fetchTwilioMedia(mediaUrl, accountSid, authToken);
+      const capturedFrom = from;
+      const capturedBody = body;
 
-      // Step 1: Parse the PDF into structured DealFields
-      const raw = await callClaudeWithPdf(PARSE_SYSTEM, base64);
-      const deal: DealFields = JSON.parse(raw);
+      after(async () => {
+        try {
+          const { base64 } = await fetchTwilioMedia(mediaUrl, accountSid, authToken);
 
-      // Step 2: Write deal to Supabase (must complete before calendar events)
-      const dealId = await writeDealRow(deal, "email_parse");
+          const raw = await callClaudeWithPdf(PARSE_SYSTEM, base64);
+          const deal: DealFields = JSON.parse(raw);
 
-      // Steps 3 + 5: Write calendar events and seed Mem0 concurrently
-      await Promise.all([
-        dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
-        seedDealMemory(deal, USER_ID),
-      ]);
+          const dealId = await writeDealRow(deal, "email_parse");
 
-      // Step 4: Build the conversational reply from the parsed deal
-      const answer = buildPdfReply(deal);
+          await Promise.all([
+            dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
+            seedDealMemory(deal, USER_ID),
+          ]);
 
-      // Save outbound reply and distill into Mem0
-      await Promise.all([
-        sb.from("messages").insert({
-          office_id: OFFICE_ID,
-          agent_id: AGENT_ID,
-          direction: "outbound",
-          channel: "sms",
-          body: answer,
-          status: "sent",
-          harriett_action: "whatsapp_reply",
-        }),
-        addMemories(
-          [
-            { role: "user", content: body ?? "[document]" },
-            { role: "assistant", content: answer },
-          ],
-          USER_ID
-        ),
-      ]);
+          const answer = buildPdfReply(deal);
 
-      return twiml(answer);
+          await Promise.all([
+            sb.from("messages").insert({
+              office_id: OFFICE_ID,
+              agent_id: AGENT_ID,
+              direction: "outbound",
+              channel: "sms",
+              body: answer,
+              status: "sent",
+              harriett_action: "whatsapp_reply",
+            }),
+            addMemories(
+              [
+                { role: "user", content: capturedBody ?? "[document]" },
+                { role: "assistant", content: answer },
+              ],
+              USER_ID
+            ),
+            sendWhatsApp(capturedFrom, answer),
+          ]);
+        } catch (err) {
+          console.error("[twilio-webhook] pdf after() error:", err);
+          await sendWhatsApp(
+            capturedFrom,
+            "Something went wrong reading that PDF. Try again or send it as a text description."
+          );
+        }
+      });
+
+      return twiml(
+        "Got your PDF. Harriett is reading through it now — I'll send you the details in a moment."
+      );
     }
 
     // Text-only message path (unchanged)
