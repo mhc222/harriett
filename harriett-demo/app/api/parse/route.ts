@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callClaudeWithPdf } from "../../lib/claude";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 import { PARSE_SYSTEM } from "../../lib/prompts";
 import { DEMO_TRANSACTION } from "../../lib/demo-transaction";
 import { getSupabaseServer } from "../../lib/supabase";
 import { seedDealMemory } from "../../lib/mem0";
 import type { DealFields } from "../../lib/types";
-import { writeCalendarEvents, OFFICE_ID, AGENT_ID } from "../../lib/deal-events";
+import { writeCalendarEvents, generateAndSaveChecklist, OFFICE_ID, AGENT_ID } from "../../lib/deal-events";
 
 // Phase 1: single agent. Phase 2: derive from authenticated session.
 const DEFAULT_USER_ID = "jerrod-hastings";
@@ -56,7 +56,12 @@ export async function POST(request: NextRequest) {
 
       if (body.demoMode) {
         const demoDealId = await writeDealRow(DEMO_TRANSACTION, "manual");
-        if (demoDealId) await writeCalendarEvents(demoDealId, DEMO_TRANSACTION);
+        if (demoDealId) {
+          await Promise.all([
+            writeCalendarEvents(demoDealId, DEMO_TRANSACTION),
+            generateAndSaveChecklist(demoDealId, DEMO_TRANSACTION),
+          ]);
+        }
         return NextResponse.json(DEMO_TRANSACTION);
       }
 
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest) {
           sb.storage.from("pdf-uploads").remove([body.storagePath]),
           seedDealMemory(deal, DEFAULT_USER_ID),
           dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
+          dealId ? generateAndSaveChecklist(dealId, deal) : Promise.resolve(),
         ]);
 
         return NextResponse.json(deal);
@@ -110,6 +116,7 @@ export async function POST(request: NextRequest) {
       await Promise.all([
         seedDealMemory(deal, DEFAULT_USER_ID),
         dealId ? writeCalendarEvents(dealId, deal) : Promise.resolve(),
+        dealId ? generateAndSaveChecklist(dealId, deal) : Promise.resolve(),
       ]);
       return NextResponse.json(deal);
     }
