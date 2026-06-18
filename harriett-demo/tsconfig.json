@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "harriett-agent", "trigger"]
+  "exclude": ["node_modules", "harriett-agent", "trigger", "harriett-video"]
 }
