@@ -31,17 +31,16 @@ export async function generateStructured<T>(opts: {
     const { object } = await generateObject({
       model,
       schema: opts.schema,
-      messages: [
-        {
-          role: "system",
-          content: opts.system,
-          // Prompt caching: repeated calls reuse the system prompt at ~10% of
-          // input price. Note Sonnet 5 only caches prefixes >= 1024 tokens, so
-          // short prompts silently skip the cache until they grow (harmless).
-          providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
-        },
-        { role: "user", content: opts.content },
-      ],
+      // AI SDK v7: system prompts go in `instructions`, not messages.
+      instructions: {
+        role: "system",
+        content: opts.system,
+        // Prompt caching: repeated calls reuse the system prompt at ~10% of
+        // input price. Note Sonnet 5 only caches prefixes >= 1024 tokens, so
+        // short prompts silently skip the cache until they grow (harmless).
+        providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } },
+      },
+      messages: [{ role: "user", content: opts.content }],
       maxOutputTokens: opts.maxOutputTokens ?? 4096,
     });
     return object;
