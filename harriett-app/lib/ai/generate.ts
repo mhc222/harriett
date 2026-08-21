@@ -1,14 +1,18 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { openai } from "@ai-sdk/openai";
 import { generateObject } from "ai";
 import type { z } from "zod";
+import {
+  fallbackConfigured,
+  modelForTier,
+  modelIdForTier,
+  type ModelTier,
+} from "./models";
 
 // Sonnet 5: better than 4.5 and cheaper ($2/$10 per MTok intro through 2026-08-31,
 // then $3/$15). Haiku carries the cheap tier: routing decisions, compliance flag
 // checks, SHAFT/drift classification ($1/$5).
-export const PRIMARY_MODEL = anthropic("claude-sonnet-5");
-export const FAST_MODEL = anthropic("claude-haiku-4-5");
-export const FALLBACK_MODEL = openai("gpt-5");
+export const PRIMARY_MODEL = modelForTier("standard");
+export const FAST_MODEL = modelForTier("fast");
+export const FALLBACK_MODEL = modelForTier("fallback");
 
 type Content =
   | string
@@ -27,9 +31,9 @@ export async function generateStructured<T>(opts: {
   tier?: "standard" | "fast";
   maxOutputTokens?: number;
 }): Promise<T> {
-  const call = async (model: typeof PRIMARY_MODEL) => {
+  const call = async (tier: ModelTier) => {
     const { object } = await generateObject({
-      model,
+      model: modelForTier(tier),
       schema: opts.schema,
       // AI SDK v7: system prompts go in `instructions`, not messages.
       instructions: {
@@ -46,12 +50,12 @@ export async function generateStructured<T>(opts: {
     return object;
   };
 
-  const primary = opts.tier === "fast" ? FAST_MODEL : PRIMARY_MODEL;
+  const primaryTier = opts.tier === "fast" ? "fast" : "standard";
   try {
-    return await call(primary);
+    return await call(primaryTier);
   } catch (primaryError) {
-    if (!process.env.OPENAI_API_KEY) throw primaryError;
-    console.error("[ai] primary model failed, using fallback:", primaryError);
-    return await call(FALLBACK_MODEL);
+    if (!fallbackConfigured()) throw primaryError;
+    console.error(`[ai] ${modelIdForTier(primaryTier)} failed, using fallback`);
+    return await call("fallback");
   }
 }

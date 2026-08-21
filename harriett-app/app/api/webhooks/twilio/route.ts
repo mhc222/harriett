@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { tasks } from "@trigger.dev/sdk";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
+import type { processAgentSms } from "@/trigger/process-agent-sms";
 import {
   detectConsentIntent,
+  twilioSendingEnabled,
   validTwilioSignature,
   STOP_CONFIRMATION,
   HELP_RESPONSE,
@@ -10,8 +13,15 @@ import {
 } from "@/lib/sms";
 
 function twiml(message?: string): NextResponse {
-  const body = message
-    ? `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${message}</Message></Response>`
+  const reply = twilioSendingEnabled() ? message : undefined;
+  const escaped = reply
+    ?.replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+  const body = reply
+    ? `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escaped}</Message></Response>`
     : `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`;
   return new NextResponse(body, { headers: { "Content-Type": "text/xml" } });
 }
@@ -23,8 +33,12 @@ export async function POST(request: Request) {
   const params = Object.fromEntries(new URLSearchParams(raw));
   const signature = request.headers.get("x-twilio-signature") ?? "";
 
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken) {
+    return NextResponse.json({ error: "Twilio webhook is not configured" }, { status: 503 });
+  }
   const url = process.env.TWILIO_WEBHOOK_URL ?? request.url;
-  if (!validTwilioSignature(process.env.TWILIO_AUTH_TOKEN ?? "", url, params, signature)) {
+  if (!validTwilioSignature(authToken, url, params, signature)) {
     return NextResponse.json({ error: "invalid signature" }, { status: 403 });
   }
 
@@ -126,9 +140,10 @@ export async function POST(request: Request) {
     return twiml();
   }
 
-  // Ordinary inbound message: store it for the conversational loop.
-  // Harriett's AI reply lands here in a later feature (Trigger.dev task).
-  const { data: msg } = await db
+  // Ordinary inbound message: store it, then let the durable task generate
+  // and send the reply after this webhook has returned.
+  const messageSid = params.MessageSid ?? null;
+  const { data: msg, error: messageError } = await db
     .from("messages")
     .insert({
       office_id: agent.office_id,
@@ -137,17 +152,48 @@ export async function POST(request: Request) {
       channel: "sms",
       body,
       status: "delivered",
-      provider_message_id: params.MessageSid ?? null,
+      provider_message_id: messageSid,
     })
     .select("id")
     .single();
+
+  if (messageError) {
+    if (messageError.code === "23505" && messageSid) {
+      const { data: existing } = await db
+        .from("messages")
+        .select("id")
+        .eq("provider_message_id", messageSid)
+        .single();
+      if (!existing) {
+        return NextResponse.json({ error: "duplicate message lookup failed" }, { status: 500 });
+      }
+      await tasks.trigger<typeof processAgentSms>(
+        "process-agent-sms",
+        { messageId: existing.id },
+        { idempotencyKey: ["twilio-inbound", messageSid], idempotencyKeyTTL: "7d" }
+      );
+      return twiml();
+    }
+    return NextResponse.json({ error: "message storage failed" }, { status: 500 });
+  }
+
   await writeAudit(db, {
     officeId: agent.office_id,
     actor: "system",
     agentId: agent.id,
     action: "sms.received",
-    payload: { messageId: msg?.id, sid: params.MessageSid },
+    payload: { messageId: msg.id, sid: messageSid },
   });
+
+  await tasks.trigger<typeof processAgentSms>(
+    "process-agent-sms",
+    { messageId: msg.id },
+    {
+      idempotencyKey: ["twilio-inbound", messageSid ?? msg.id],
+      idempotencyKeyTTL: "7d",
+      concurrencyKey: agent.id,
+    }
+  );
 
   return twiml();
 }

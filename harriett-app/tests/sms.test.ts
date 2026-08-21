@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertSendAllowed,
   detectConsentIntent,
+  smsDeliveryMode,
   smsGuardrailViolation,
+  twilioSendingEnabled,
   validTwilioSignature,
 } from "@/lib/sms";
 
@@ -33,6 +35,49 @@ describe("validTwilioSignature", () => {
 
   it("rejects a wrong-length signature without throwing", () => {
     expect(validTwilioSignature(authToken, url, params, "short")).toBe(false);
+  });
+});
+
+describe("twilioSendingEnabled", () => {
+  it("defaults to dry-run and only enables live Twilio on explicit live mode", () => {
+    const original = process.env.TWILIO_SEND_ENABLED;
+    const originalMode = process.env.SMS_DELIVERY_MODE;
+    delete process.env.SMS_DELIVERY_MODE;
+    delete process.env.TWILIO_SEND_ENABLED;
+    expect(twilioSendingEnabled()).toBe(false);
+    expect(smsDeliveryMode()).toBe("dry_run");
+
+    process.env.TWILIO_SEND_ENABLED = "false";
+    expect(twilioSendingEnabled()).toBe(false);
+    expect(smsDeliveryMode()).toBe("dry_run");
+
+    process.env.TWILIO_SEND_ENABLED = "true";
+    expect(twilioSendingEnabled()).toBe(false);
+    expect(smsDeliveryMode()).toBe("dry_run");
+
+    if (original === undefined) delete process.env.TWILIO_SEND_ENABLED;
+    else process.env.TWILIO_SEND_ENABLED = original;
+    if (originalMode === undefined) delete process.env.SMS_DELIVERY_MODE;
+    else process.env.SMS_DELIVERY_MODE = originalMode;
+  });
+
+  it("treats dry-run mode as not live Twilio sending", () => {
+    const original = process.env.TWILIO_SEND_ENABLED;
+    const originalMode = process.env.SMS_DELIVERY_MODE;
+
+    process.env.TWILIO_SEND_ENABLED = "true";
+    process.env.SMS_DELIVERY_MODE = "dry_run";
+    expect(smsDeliveryMode()).toBe("dry_run");
+    expect(twilioSendingEnabled()).toBe(false);
+
+    process.env.SMS_DELIVERY_MODE = "live";
+    expect(smsDeliveryMode()).toBe("live");
+    expect(twilioSendingEnabled()).toBe(true);
+
+    if (original === undefined) delete process.env.TWILIO_SEND_ENABLED;
+    else process.env.TWILIO_SEND_ENABLED = original;
+    if (originalMode === undefined) delete process.env.SMS_DELIVERY_MODE;
+    else process.env.SMS_DELIVERY_MODE = originalMode;
   });
 });
 

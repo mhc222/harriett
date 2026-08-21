@@ -2,18 +2,31 @@ import { defineConfig } from "@trigger.dev/sdk";
 import { syncEnvVars } from "@trigger.dev/build/extensions/core";
 
 export default defineConfig({
-  project: "proj_xaifcmclqlqvsljcctnf",
+  project: "proj_jjyiwhswhllwvwicxxvn",
   dirs: ["./trigger"],
   maxDuration: 300,
   build: {
+    // Mem0 exposes many optional providers through one package entry point.
+    // Keep it external so Trigger installs the package at runtime instead of
+    // trying to bundle providers Harriett does not use.
+    external: ["mem0ai", "@supabase/supabase-js"],
     extensions: [
-      // Deploy-time env sync from the local .env so the dashboard never has
-      // to be hand-edited. Values live in .env(.local), never in this file.
-      syncEnvVars(() =>
-        ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+      // Operational switches remain visible. Provider credentials are synced
+      // as redacted secrets and never included in task payloads or logs.
+      syncEnvVars(() => [
+        ...[
+          "SMS_DELIVERY_MODE",
+          "TWILIO_SEND_ENABLED",
+          "MEMORY_MODE",
+          "MEM0_TELEMETRY",
+          "MEM0_LLM_MODEL",
+        ]
           .filter((name) => process.env[name])
-          .map((name) => ({ name, value: process.env[name]! }))
-      ),
+          .map((name) => ({ name, value: process.env[name]! })),
+        ...["OPENAI_API_KEY"]
+          .filter((name) => process.env[name])
+          .map((name) => ({ name, value: process.env[name]!, isSecret: true })),
+      ]),
     ],
   },
   retries: {

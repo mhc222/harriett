@@ -1,0 +1,158 @@
+{
+  "office_id": "00000000-0000-0000-0000-000000000001",
+  "sources": [
+    {
+      "id": "nar-code-of-ethics-2026",
+      "title": "NAR Code of Ethics and Standards of Practice",
+      "kind": "regulation",
+      "authority": 82,
+      "status": "published",
+      "source_url": "https://www.nar.realtor/about-nar/governing-documents/code-of-ethics/2026-code-of-ethics-standards-of-practice",
+      "local_path": "/Users/mattcronin/Downloads/2026-COE-Standards-of-Practice-2026-01-01.pdf",
+      "effective_from": "2026-01-01",
+      "publisher": "National Association of REALTORS",
+      "jurisdiction": "United States",
+      "notes": "Professional ethics authority for REALTORS. Alabama law and AREC rules take precedence when they conflict."
+    },
+    {
+      "id": "arec-statutory-changes-2025-2026",
+      "title": "AREC Statutory Changes and 2025-2026 Rule Updates",
+      "kind": "regulation",
+      "authority": 96,
+      "status": "review",
+      "source_url": "https://arec.alabama.gov/pages/laws/StatutoryChanges.aspx?AspxAutoDetectCookieSupport=1",
+      "effective_from": "2025-04-18",
+      "publisher": "Alabama Real Estate Commission",
+      "jurisdiction": "Alabama",
+      "notes": "Landing page for Act 2025-59, Act 2025-380, Act 2025-379, RECAD changes, advertising basics, and 2026 rule updates."
+    },
+    {
+      "id": "arec-license-law-list",
+      "title": "AREC License Law and Rules Index",
+      "kind": "regulation",
+      "authority": 95,
+      "status": "review",
+      "source_url": "https://arec.alabama.gov/pages/laws/LawList.aspx?AspxAutoDetectCookieSupport=1",
+      "publisher": "Alabama Real Estate Commission",
+      "jurisdiction": "Alabama",
+      "notes": "AREC index for Alabama Code Title 34 Chapter 27 and administrative rules."
+    },
+    {
+      "id": "alabama-code-34-27-82-recad",
+      "title": "Alabama Code Section 34-27-82 RECAD Roles and Duties",
+      "kind": "regulation",
+      "authority": 100,
+      "status": "review",
+      "source_url": "https://arec.alabama.gov/pages/laws/ViewLaw.aspx?AspxAutoDetectCookieSupport=1&LawSectionID=28",
+      "publisher": "Alabama Legislature via AREC",
+      "jurisdiction": "Alabama",
+      "notes": "RECAD agency disclosure, transaction facilitator default, brokerage agreement timing, and representation disclosure clause."
+    },
+    {
+      "id": "alabama-code-34-27-8-commission-authority",
+      "title": "Alabama Code Section 34-27-8 Real Estate Commission Authority",
+      "kind": "regulation",
+      "authority": 100,
+      "status": "review",
+      "source_url": "https://alison.legislature.state.al.us/code-of-alabama?section=34-27-8",
+      "publisher": "Alabama Legislature",
+      "jurisdiction": "Alabama",
+      "notes": "Commission rulemaking and agency disclosure authority."
+    },
+    {
+      "id": "alabama-code-34-27-2-definitions",
+      "title": "Alabama Code Section 34-27-2 Real Estate Broker Definitions",
+      "kind": "regulation",
+      "authority": 100,
+      "status": "review",
+      "source_url": "https://alison.legislature.state.al.us/code-of-alabama?section=34-27-2",
+      "publisher": "Alabama Legislature",
+      "jurisdiction": "Alabama",
+      "notes": "Definitions for broker, company, buyer agreement, listing agreement, qualifying broker, licensee, and team."
+    },
+    {
+      "id": "alabama-admin-code-790-x-3-13",
+      "title": "Alabama Administrative Code Rule 790-X-3-.13 Agency/Brokerage Services Disclosure",
+      "kind": "regulation",
+      "authority": 98,
+      "status": "review",
+      "source_url": "https://admincode.legislature.state.al.us/administrative-code/790-X-3-.13",
+      "effective_from": "2026-02-14",
+      "publisher": "Alabama Legislative Services Agency",
+      "jurisdiction": "Alabama",
+      "notes": "Mandatory Real Estate Brokerage Services Disclosure form and timing."
+    },
+    {
+      "id": "alabama-admin-code-790-x-3-14",
+      "title": "Alabama Administrative Code Rule 790-X-3-.14 Agency/Brokerage Office Policy",
+      "kind": "regulation",
+      "authority": 98,
+      "status": "review",
+      "source_url": "https://admincode.legislature.state.al.us/administrative-code/790-X-3-.14",
+      "effective_from": "2026-02-14",
+      "publisher": "Alabama Legislative Services Agency",
+      "jurisdiction": "Alabama",
+      "notes": "Office policy requirements related to agency and brokerage services disclosure."
+    },
+    {
+      "id": "alabama-admin-code-790-x-3-03",
+      "title": "Alabama Administrative Code Rule 790-X-3-.03 Deposit of Funds",
+      "kind": "regulation",
+      "authority": 98,
+      "status": "review",
+      "source_url": "https://arec.alabama.gov/pages/laws/ViewLaw.aspx?AspxAutoDetectCookieSupport=1&LawSectionID=92",
+      "effective_from": "2025-04-14",
+      "publisher": "Alabama Real Estate Commission",
+      "jurisdiction": "Alabama",
+      "notes": "Trust funds and earnest money handling."
+    },
+    {
+      "id": "alabama-admin-code-790-x-3-04",
+      "title": "Alabama Administrative Code Rule 790-X-3-.04 Estimated Closing Statement",
+      "kind": "regulation",
+      "authority": 98,
+      "status": "review",
+      "source_url": "https://admincode.legislature.state.al.us/administrative-code/790-X-3-.04",
+      "effective_from": "2025-02-14",
+      "publisher": "Alabama Legislative Services Agency",
+      "jurisdiction": "Alabama",
+      "notes": "Estimated closing statement requirement for written offers and counteroffers."
+    },
+    {
+      "id": "alabama-admin-code-790-x-3-16",
+      "title": "Alabama Administrative Code Rule 790-X-3-.16 Advertising Teams",
+      "kind": "regulation",
+      "authority": 98,
+      "status": "review",
+      "source_url": "https://admincode.legislature.state.al.us/administrative-code/790-X-3-.16",
+      "effective_from": "2026-02-14",
+      "publisher": "Alabama Legislative Services Agency",
+      "jurisdiction": "Alabama",
+      "notes": "Team advertising and marketing naming requirements."
+    },
+    {
+      "id": "alabama-code-8-42-2-wholesaling",
+      "title": "Alabama Code Section 8-42-2 Assignment of Equitable Interest in Single-Family Residential Property",
+      "kind": "regulation",
+      "authority": 100,
+      "status": "review",
+      "source_url": "https://alison.legislature.state.al.us/code-of-alabama?section=8-42-2",
+      "effective_from": "2023-01-01",
+      "publisher": "Alabama Legislature",
+      "jurisdiction": "Alabama",
+      "notes": "Residential wholesaling disclosure requirements and penalties."
+    },
+    {
+      "id": "alabama-code-8-42-3-unfair-service-agreements",
+      "title": "Alabama Code Section 8-42-3 Unfair Service Agreements",
+      "kind": "regulation",
+      "authority": 100,
+      "status": "review",
+      "source_url": "https://alison.legislature.state.al.us/code-of-alabama?section=8-42-3",
+      "effective_from": "2023-01-01",
+      "publisher": "Alabama Legislature",
+      "jurisdiction": "Alabama",
+      "notes": "Unfair residential real estate service agreements and liens."
+    }
+  ]
+}

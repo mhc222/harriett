@@ -1,0 +1,8 @@
+{"type":"server-started","port":62109,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:62109","screen_dir":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content","state_dir":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/state"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content/onboard-layout.html"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content/onboard-harriett-voice.html"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content/onboard-logo.html"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content/onboard-logo-v2.html"}
+{"type":"screen-added","file":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content/onboard-logo-v3.html"}
+{"type":"screen-updated","file":"/Users/mattcronin/Projects/Harriett/.superpowers/brainstorm/53750-1781103967/content/onboard-logo-v3.html"}
+{"type":"server-stopped","reason":"idle timeout"}

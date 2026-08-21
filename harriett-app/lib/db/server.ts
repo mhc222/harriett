@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import WebSocket from "ws";
 
 // User-scoped client. RLS enforced. This is what route handlers and server
 // components use; office/agent identity comes from the session JWT claims.
@@ -33,6 +34,12 @@ export function createServiceClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      realtime:
+        typeof globalThis.WebSocket === "undefined"
+          ? { transport: WebSocket as never }
+          : undefined,
+    }
   );
 }

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "knowledge:ingest": "node scripts/knowledge/ingest-compliance-sources.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -17,9 +18,11 @@
     "@supabase/supabase-js": "^2.112.3",
     "@trigger.dev/sdk": "^4.5.10",
     "ai": "^7.0.59",
+    "mem0ai": "^3.1.6",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -28,6 +31,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",

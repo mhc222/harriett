@@ -1,0 +1,76 @@
+<h2>Onboarding — Harriett's voice, 3 layouts</h2>
+<p class="subtitle">She's interviewing you, not the other way around. Pick the layout that feels right.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#1C1814;padding:20px;border-radius:8px;font-family:Georgia,serif;min-height:180px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#B91C1C;flex-shrink:0;"></div>
+        <div style="height:3px;flex:1;background:#3C3530;border-radius:2px;">
+          <div style="height:3px;width:25%;background:#B91C1C;border-radius:2px;"></div>
+        </div>
+        <span style="color:#6B5E52;font-size:9px;">Step 1 of 4</span>
+      </div>
+      <p style="color:#9C9189;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 6px;">Harriett.</p>
+      <p style="color:#F5F0E8;font-size:13px;font-weight:600;margin:0 0 4px;line-height:1.4;">Before we get started, I need to know who I'm working with.</p>
+      <p style="color:#9C9189;font-size:10px;margin:0 0 14px;line-height:1.5;">I'll use your name, your signature, and the way you like to talk to clients. Every message I draft will sound like you — not like software.</p>
+      <input class="mock-input" placeholder="Your full name" style="font-size:10px;padding:6px 10px;background:#2C2820;border-color:#3C3530;color:#F5F0E8;width:100%;box-sizing:border-box;" />
+      <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+        <button class="mock-button" style="font-size:10px;padding:6px 16px;">Let's go</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Full-screen, dark</h3>
+      <p>Harriett's words front and center. Feels like a message from her, not a form. One step at a time.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#2C2820;padding:14px;border-radius:8px;display:flex;gap:10px;min-height:180px;">
+      <div style="width:80px;background:#1C1814;border-radius:6px;padding:10px;flex-shrink:0;display:flex;flex-direction:column;gap:4px;">
+        <p style="color:#F5F0E8;font-size:10px;font-weight:700;font-family:Georgia,serif;margin:0 0 10px;">Harriett.</p>
+        <div style="background:#B91C1C;border-radius:3px;padding:4px 6px;color:#F5F0E8;font-size:8px;font-weight:600;">Who you are</div>
+        <div style="background:#2C2820;border-radius:3px;padding:4px 6px;color:#6B5E52;font-size:8px;">How you write</div>
+        <div style="background:#2C2820;border-radius:3px;padding:4px 6px;color:#6B5E52;font-size:8px;">Your vendors</div>
+        <div style="background:#2C2820;border-radius:3px;padding:4px 6px;color:#6B5E52;font-size:8px;">Your accounts</div>
+      </div>
+      <div style="flex:1;background:#F5F0E8;border-radius:6px;padding:12px;">
+        <p style="font-size:10px;color:#9C9189;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 4px;">Harriett.</p>
+        <p style="font-size:12px;font-weight:700;color:#1C1814;margin:0 0 4px;line-height:1.4;">Before we get started, I need to know who I'm working with.</p>
+        <p style="font-size:9px;color:#6B5E52;margin:0 0 10px;line-height:1.5;">Every message I draft will sound like you — not like software.</p>
+        <input class="mock-input" placeholder="Full name" style="font-size:9px;padding:5px 8px;width:100%;box-sizing:border-box;margin-bottom:5px;" />
+        <input class="mock-input" placeholder="Signature (e.g. T-Money, Tanner)" style="font-size:9px;padding:5px 8px;width:100%;box-sizing:border-box;" />
+        <button class="mock-button" style="margin-top:8px;font-size:9px;padding:5px 14px;">Continue</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sidebar nav + content</h3>
+      <p>All 4 steps visible in sidebar. Feels like a product dashboard from day one. Most "enterprise" of the three.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F5F0E8;padding:16px;border-radius:8px;min-height:180px;">
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:12px;">
+        <div style="width:24px;height:3px;border-radius:2px;background:#1C1814;"></div>
+        <div style="width:24px;height:3px;border-radius:2px;background:#D4CFC8;"></div>
+        <div style="width:24px;height:3px;border-radius:2px;background:#D4CFC8;"></div>
+        <div style="width:24px;height:3px;border-radius:2px;background:#D4CFC8;"></div>
+      </div>
+      <div style="background:#fff;border:1px solid #E8E2D8;border-radius:10px;padding:14px;max-width:210px;margin:0 auto;">
+        <p style="font-size:9px;color:#9C9189;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 6px;">Harriett.</p>
+        <p style="font-size:12px;font-weight:700;color:#1C1814;margin:0 0 4px;line-height:1.4;">Before we get started, I need to know who I'm working with.</p>
+        <p style="font-size:9px;color:#6B5E52;margin:0 0 10px;line-height:1.5;">Every message I draft will sound like you — not like software.</p>
+        <input class="mock-input" placeholder="Full name" style="font-size:9px;padding:5px 8px;width:100%;box-sizing:border-box;margin-bottom:5px;" />
+        <input class="mock-input" placeholder="Signature (e.g. T-Money)" style="font-size:9px;padding:5px 8px;width:100%;box-sizing:border-box;" />
+        <button class="mock-button" style="margin-top:10px;font-size:9px;padding:5px 14px;width:100%;">Let's go</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Card on cream</h3>
+      <p>Lighter, consumer feel. Dot progress indicators. Matches the current Harriett login/landing aesthetic closest.</p>
+    </div>
+  </div>
+
+</div>

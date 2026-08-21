@@ -1,0 +1,78 @@
+<h2>Onboarding wizard — which layout?</h2>
+<p class="subtitle">All 3 cover the same 4 steps: profile → vendors → social → email</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#1C1814;padding:16px;border-radius:8px;font-family:Georgia,serif;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#B91C1C;"></div>
+        <div style="height:4px;flex:1;background:#3C3530;border-radius:2px;">
+          <div style="height:4px;width:25%;background:#B91C1C;border-radius:2px;"></div>
+        </div>
+        <span style="color:#9C9189;font-size:10px;">1 of 4</span>
+      </div>
+      <div style="text-align:center;padding:12px 0;">
+        <p style="color:#F5F0E8;font-size:14px;font-weight:600;margin:0 0 6px;">What's your name?</p>
+        <input class="mock-input" placeholder="Tanner Ashcraft" style="width:140px;text-align:center;font-size:12px;" />
+        <div style="margin-top:12px;">
+          <button class="mock-button" style="font-size:11px;padding:6px 20px;">Continue</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Full-screen wizard</h3>
+      <p>One step per screen. Progress bar at top. Clean, focused, zero distraction. Like Notion or Linear onboarding.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#2C2820;padding:16px;border-radius:8px;display:flex;gap:10px;">
+      <div style="width:90px;background:#1C1814;border-radius:6px;padding:10px;flex-shrink:0;">
+        <div style="width:24px;height:24px;border-radius:50%;background:#B91C1C;margin:0 auto 8px;"></div>
+        <p style="color:#F5F0E8;font-size:9px;font-weight:600;text-align:center;margin:0 0 10px;">Harriett.</p>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="background:#B91C1C;border-radius:3px;padding:3px 6px;color:#F5F0E8;font-size:8px;">Profile</div>
+          <div style="background:#3C3530;border-radius:3px;padding:3px 6px;color:#9C9189;font-size:8px;">Vendors</div>
+          <div style="background:#3C3530;border-radius:3px;padding:3px 6px;color:#9C9189;font-size:8px;">Social</div>
+          <div style="background:#3C3530;border-radius:3px;padding:3px 6px;color:#9C9189;font-size:8px;">Email</div>
+        </div>
+      </div>
+      <div style="flex:1;background:#F5F0E8;border-radius:6px;padding:10px;">
+        <p style="font-size:11px;font-weight:600;color:#1C1814;margin:0 0 4px;">Set up your profile</p>
+        <p style="font-size:9px;color:#6B5E52;margin:0 0 8px;">Harriett learns your voice and preferences.</p>
+        <input class="mock-input" placeholder="Your name" style="font-size:9px;padding:5px 8px;width:100%;box-sizing:border-box;" />
+        <button class="mock-button" style="margin-top:8px;font-size:9px;padding:5px 14px;">Save &amp; continue</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sidebar steps + content panel</h3>
+      <p>Dark sidebar shows all 4 steps. Content panel right. Feels like a product, not a form. Progress visible at a glance.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F5F0E8;padding:16px;border-radius:8px;">
+      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:10px;">
+        <div style="width:20px;height:4px;border-radius:2px;background:#1C1814;"></div>
+        <div style="width:20px;height:4px;border-radius:2px;background:#D4CFC8;"></div>
+        <div style="width:20px;height:4px;border-radius:2px;background:#D4CFC8;"></div>
+        <div style="width:20px;height:4px;border-radius:2px;background:#D4CFC8;"></div>
+      </div>
+      <div style="background:#fff;border:1px solid #E8E2D8;border-radius:8px;padding:12px;max-width:200px;margin:0 auto;">
+        <p style="font-size:11px;font-weight:600;color:#1C1814;margin:0 0 4px;">Tell Harriett who you are</p>
+        <p style="font-size:9px;color:#6B5E52;margin:0 0 10px;">She'll remember this for every conversation.</p>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <input class="mock-input" placeholder="Full name" style="font-size:9px;padding:5px 8px;" />
+          <input class="mock-input" placeholder="Your signature (e.g. T-Money)" style="font-size:9px;padding:5px 8px;" />
+        </div>
+        <button class="mock-button" style="margin-top:10px;font-size:9px;padding:5px 14px;width:100%;">Next</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Card-in-cream</h3>
+      <p>White card centered on cream background. Dot indicators at top. Lighter feel, more consumer-app. Closest to current Harriett login style.</p>
+    </div>
+  </div>
+
+</div>

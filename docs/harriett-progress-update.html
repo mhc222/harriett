@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Harriett Progress Update</title>
+  <style>
+    @page { size: 13.333in 7.5in; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #ddd7cd; color: #1c1916; font-family: Arial, Helvetica, sans-serif; }
+    .slide { width: 13.333in; height: 7.5in; page-break-after: always; position: relative; overflow: hidden; background: #f5f0e8; padding: .55in .7in; }
+    .slide:last-child { page-break-after: auto; }
+    h1, h2, .serif { font-family: Georgia, 'Times New Roman', serif; }
+    h1 { font-size: 43pt; line-height: 1.03; margin: 0; letter-spacing: -1.4px; }
+    h2 { font-size: 29pt; line-height: 1.08; margin: 0 0 .2in; letter-spacing: -.7px; }
+    p { font-size: 14pt; line-height: 1.45; margin: 0; color: #665f57; }
+    .eyebrow { font-size: 9pt; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; color: #9e1736; margin-bottom: .15in; }
+    .brand { position: absolute; top: .36in; left: .55in; display: flex; align-items: center; gap: .12in; color: #fff; font: 18pt Georgia, serif; }
+    .brand img { width: .34in; height: .34in; object-fit: cover; border-radius: 7px; background: #fff; }
+    .dot { color: #b20f38; }
+    .footer { position: absolute; bottom: .28in; left: .7in; right: .7in; display: flex; justify-content: space-between; font-size: 8pt; color: #8e867e; letter-spacing: .5px; }
+    .cover { padding: 0; display: grid; grid-template-columns: 46% 54%; }
+    .cover-left { background: #1b1815; color: #fff; display: flex; align-items: center; justify-content: center; }
+    .cover-left > img { width: 3.65in; height: 3.65in; object-fit: contain; background: white; border-radius: 24px; }
+    .cover-right { padding: 1.75in .9in 1in; }
+    .cover-right p { margin-top: .28in; font-size: 16pt; max-width: 5in; }
+    .cover-right .date { margin-top: .6in; font-size: 10pt; text-transform: uppercase; letter-spacing: 1.6px; color: #9e1736; font-weight: 700; }
+    .two-col { display: grid; grid-template-columns: 44% 56%; gap: .48in; height: 5.9in; align-items: center; }
+    .shot { width: 100%; border-radius: 13px; border: 1px solid #ddd4ca; box-shadow: 0 12px 30px rgba(41,31,24,.12); }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: .14in; margin-top: .32in; }
+    .card { background: #fff; border: 1px solid #ded6cc; border-radius: 12px; padding: .2in .22in; min-height: .92in; }
+    .card strong { display: block; font: 15pt Georgia, serif; margin-bottom: .06in; color: #1c1916; }
+    .card span { font-size: 10.5pt; line-height: 1.35; color: #6a625a; }
+    .status { display: grid; grid-template-columns: repeat(4, 1fr); gap: .16in; margin-top: .65in; position: relative; }
+    .status:before { content: ''; position: absolute; height: 3px; background: #d8cec2; top: .22in; left: .7in; right: .7in; }
+    .stage { text-align: center; position: relative; }
+    .stage .circle { width: .46in; height: .46in; border-radius: 50%; margin: 0 auto .18in; display: grid; place-items: center; background: #fff; border: 3px solid #cfc4b7; font-size: 12pt; font-weight: 700; position: relative; z-index: 1; }
+    .stage.done .circle { background: #1b1815; color: #fff; border-color: #1b1815; }
+    .stage.now .circle { background: #a61336; color: #fff; border-color: #a61336; }
+    .stage strong { display: block; font: 15pt Georgia, serif; }
+    .stage p { font-size: 10.5pt; margin-top: .08in; }
+    .proof { display: flex; gap: .24in; margin-top: .7in; justify-content: center; }
+    .proof div { background: #fff; border: 1px solid #ded6cc; border-radius: 12px; padding: .18in .28in; text-align: center; min-width: 1.8in; }
+    .proof b { font: 25pt Georgia, serif; display: block; color: #a61336; }
+    .proof span { font-size: 9pt; color: #6d655d; text-transform: uppercase; letter-spacing: .8px; }
+    .next-list { display: grid; grid-template-columns: 1fr 1fr; gap: .16in; margin-top: .35in; }
+    .next { background: #fff; border-radius: 12px; padding: .2in .25in; border: 1px solid #ded6cc; display: grid; grid-template-columns: .42in 1fr; gap: .12in; align-items: start; }
+    .num { width: .35in; height: .35in; border-radius: 50%; background: #1b1815; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 10pt; }
+    .next strong { font: 14pt Georgia, serif; display: block; margin-bottom: .04in; }
+    .next span { font-size: 10.5pt; color: #6a625a; line-height: 1.35; }
+    .rule { border-left: 4px solid #a61336; padding-left: .18in; margin-top: .32in; font: italic 14pt Georgia, serif; color: #4c4540; }
+    .dark { background: #1b1815; color: #fff; }
+    .dark p { color: #bbb1a7; }
+    .ask-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .18in; margin-top: .42in; }
+    .ask { border-top: 1px solid #4a443e; padding: .17in 0; }
+    .ask b { display: inline-block; color: #d32950; font: 16pt Georgia, serif; width: .35in; }
+    .ask span { font-size: 13pt; color: #eee8e1; }
+    .close { position: absolute; bottom: .95in; left: .7in; max-width: 8.5in; font: 23pt/1.25 Georgia, serif; color: #fff; }
+  </style>
+</head>
+<body>
+  <section class="slide cover">
+    <div class="cover-left">
+      <div class="brand"><img src="../harriett-demo/public/harriett-logo.png">Harriett<span class="dot">.</span></div>
+      <img src="../harriett-demo/public/harriett-logo.png" alt="Harriett">
+    </div>
+    <div class="cover-right">
+      <div class="eyebrow">Client progress update</div>
+      <h1>From proof of concept<br>to production pilot.</h1>
+      <p>What we have proven, what has been built, where we stand, and what comes next.</p>
+      <div class="date">Pritchett-Moore Real Estate · August 17, 2026</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="two-col">
+      <div>
+        <div class="eyebrow">01 · Working proof</div>
+        <h2>Phase 1 proved Harriett can understand a real transaction.</h2>
+        <p>Using the executed 604 2nd St NW file, Harriett turned contract data into useful office work.</p>
+        <div class="cards">
+          <div class="card"><strong>Read the contract</strong><span>Extract parties, prices, dates, financing, property facts, and compliance flags.</span></div>
+          <div class="card"><strong>Build the plan</strong><span>Create office-specific checklists, deadlines, and calendar events.</span></div>
+          <div class="card"><strong>Draft the work</strong><span>Prepare marketing, CMA, and vendor-coordination content.</span></div>
+          <div class="card"><strong>Answer in context</strong><span>Let agents and coordinators ask questions about the live deal.</span></div>
+        </div>
+      </div>
+      <img class="shot" src="presentation-assets/phase1-transaction-checklist.png" alt="Phase 1 checklist">
+    </div>
+    <div class="footer"><span>HARRIETT PROGRESS UPDATE</span><span>2</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="two-col">
+      <img class="shot" src="presentation-assets/phase2-secure-login.png" alt="Phase 2 secure login">
+      <div>
+        <div class="eyebrow">02 · Production foundation</div>
+        <h2>Phase 2 is a secure rebuild, not a dressed-up demo.</h2>
+        <div class="cards">
+          <div class="card"><strong>Identity and roles</strong><span>Secure login with agent, broker, and coordinator permissions.</span></div>
+          <div class="card"><strong>Structured operations</strong><span>Deals, documents, contacts, vendors, calendars, checklists, and messages.</span></div>
+          <div class="card"><strong>Durable processing</strong><span>Contract workflows can retry safely and keep an audit trail.</span></div>
+          <div class="card"><strong>Compliance controls</strong><span>Consent, opt-out, broker approval, and consumer-channel restrictions.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>HARRIETT PROGRESS UPDATE</span><span>3</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="eyebrow">03 · Where we are</div>
+    <h2>The concept is proven. The foundation is built. Integrations come next.</h2>
+    <div class="status">
+      <div class="stage done"><div class="circle">✓</div><strong>Proof complete</strong><p>Real transaction demonstrated end to end.</p></div>
+      <div class="stage done"><div class="circle">✓</div><strong>Foundation built</strong><p>Secure app, data model, workflow, and controls.</p></div>
+      <div class="stage now"><div class="circle">3</div><strong>Integrations next</strong><p>Microsoft 365, A2P, and approval experience.</p></div>
+      <div class="stage"><div class="circle">4</div><strong>Controlled pilot</strong><p>First agents and one live deal, measured closely.</p></div>
+    </div>
+    <div class="proof">
+      <div><b>34</b><span>Automated tests passing</span></div>
+      <div><b>Pass</b><span>TypeScript and lint</span></div>
+      <div><b>Ready</b><span>Production deployment</span></div>
+    </div>
+    <div class="footer"><span>STATUS AS OF AUGUST 17, 2026</span><span>4</span></div>
+  </section>
+
+  <section class="slide">
+    <div class="eyebrow">04 · Next 30 days</div>
+    <h2>Move from foundation to one controlled, end-to-end pilot transaction.</h2>
+    <div class="next-list">
+      <div class="next"><div class="num">1</div><div><strong>Connect Microsoft 365</strong><span>Enable secure inbox, calendar, contacts, and agent-context email.</span></div></div>
+      <div class="next"><div class="num">2</div><div><strong>Complete A2P setup</strong><span>Publish opt-in and privacy language, then submit registration.</span></div></div>
+      <div class="next"><div class="num">3</div><div><strong>Finish broker approvals</strong><span>Put the review queue and durable approval flow in front of Wilson.</span></div></div>
+      <div class="next"><div class="num">4</div><div><strong>Onboard pilot agents</strong><span>Capture preferred vendors, tone, signature, working style, and consent.</span></div></div>
+      <div class="next"><div class="num">5</div><div><strong>Run the controlled pilot</strong><span>Process one live transaction, review every action, and measure the result.</span></div></div>
+      <div class="next"><div class="num">6</div><div><strong>Prepare MLS access</strong><span>Confirm WAMLS and Trestle’s approved read path before promising write access.</span></div></div>
+    </div>
+    <div class="rule">SMS and RCS are for agents only. Consumer communication is broker-approved email from the agent’s Microsoft 365 account.</div>
+    <div class="footer"><span>HARRIETT PROGRESS UPDATE</span><span>5</span></div>
+  </section>
+
+  <section class="slide dark">
+    <div class="brand"><img src="../harriett-demo/public/harriett-logo.png">Harriett<span class="dot">.</span></div>
+    <div style="margin-top:.85in">
+      <div class="eyebrow">05 · Decisions and inputs</div>
+      <h2 style="font-size:34pt;max-width:8in">Five items unblock the pilot.</h2>
+      <div class="ask-grid">
+        <div class="ask"><b>1</b><span>Confirm the first 3 to 5 pilot agents.</span></div>
+        <div class="ask"><b>2</b><span>Identify the Microsoft 365 administrator.</span></div>
+        <div class="ask"><b>3</b><span>Provide exact legal business details for A2P registration.</span></div>
+        <div class="ask"><b>4</b><span>Authorize contact with WAMLS and Trestle.</span></div>
+        <div class="ask"><b>5</b><span>Choose the intended Harriett ownership and company direction.</span></div>
+      </div>
+    </div>
+    <div class="close">We have proven the concept and built the foundation.<br><span style="color:#d32950">The next milestone is a controlled live pilot.</span></div>
+    <div class="footer"><span>PRITCHETT-MOORE REAL ESTATE</span><span>6</span></div>
+  </section>
+</body>
+</html>

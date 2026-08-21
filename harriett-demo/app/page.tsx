@@ -23,7 +23,7 @@ function LogoPanel() {
       />
       <p className="mt-8 text-base font-medium text-center max-w-xs"
         style={{ color: "#9C9189", fontFamily: "var(--font-playfair)", fontStyle: "italic" }}>
-        The chief of staff your agents didn't know they wanted.
+        The chief of staff your agents did not know they wanted.
       </p>
     </div>
   );
@@ -71,6 +71,15 @@ export default function Landing() {
               </svg>
             </Link>
           </div>
+
+          <footer className="mt-6 flex justify-center gap-5 text-xs" style={{ color: "var(--ink-mid)" }}>
+            <Link href="/privacy" className="transition-colors hover:text-black">
+              Privacy
+            </Link>
+            <Link href="/sms-terms" className="transition-colors hover:text-black">
+              SMS Terms
+            </Link>
+          </footer>
         </div>
       </div>
     </div>

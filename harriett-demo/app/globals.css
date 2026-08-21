@@ -15,7 +15,20 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-playfair);
+  --font-display: var(--font-playfair);
+
+  /* Doc page design tokens */
+  --color-paper: #fbf5ea;
+  --color-cream: #f1e7d6;
+  --color-offwhite: #fff8ee;
+  --color-ink: #11161a;
+  --color-teal: #1e6e73;
+  --color-gold: #d2a66b;
+  --color-stone: #5d6166;
 }
+
+.font-display { font-family: var(--font-playfair); }
+.hairline-t { border-top: 1px solid rgba(17,22,26,0.1); }
 
 body {
   background: var(--cream);
@@ -37,4 +50,10 @@ body {
     box-shadow: none !important;
   }
   header, nav { display: none !important; }
+  @page { size: letter portrait; margin: 0.75in; }
+  .rounded-lg, .rounded-xl { break-inside: avoid; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  h2, h3 { break-after: avoid; }
+  .overflow-x-auto { overflow: visible; }
 }

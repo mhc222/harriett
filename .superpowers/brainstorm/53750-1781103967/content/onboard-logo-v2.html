@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harriett Onboarding</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1C1814;
+    font-family: Georgia, 'Times New Roman', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .shell {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Avatar */
+  .avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #2C2820;
+    border: 2px solid #3C3530;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+  .avatar svg {
+    width: 72px;
+    height: 72px;
+  }
+
+  /* Logo */
+  .logo {
+    font-size: 26px;
+    font-weight: 600;
+    color: #F5F0E8;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+  .logo span { color: #B91C1C; }
+
+  .tagline {
+    font-size: 10px;
+    color: #6B5E52;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+
+  /* Progress */
+  .progress-wrap {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+    margin-bottom: 28px;
+  }
+  .progress-step {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: #3C3530;
+  }
+  .progress-step.active { background: #B91C1C; }
+
+  /* Card */
+  .card {
+    background: #F5F0E8;
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+  }
+  .card-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #B91C1C;
+    margin-bottom: 10px;
+  }
+  .card-heading {
+    font-size: 19px;
+    font-weight: 700;
+    color: #1C1814;
+    line-height: 1.35;
+    margin-bottom: 8px;
+  }
+  .card-sub {
+    font-size: 13px;
+    color: #6B5E52;
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .field input {
+    background: #fff;
+    border: 1px solid #E8E2D8;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: Georgia, serif;
+    font-size: 14px;
+    color: #1C1814;
+    outline: none;
+  }
+  .field input::placeholder { color: #B8B0A6; }
+  .actions { display: flex; justify-content: flex-end; }
+  .btn-primary {
+    background: #1C1814;
+    color: #F5F0E8;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 28px;
+    font-family: Georgia, serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Face icon -->
+  <div class="avatar">
+    <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- background -->
+      <circle cx="36" cy="36" r="36" fill="#2C2820"/>
+      <!-- neck / body -->
+      <ellipse cx="36" cy="66" rx="16" ry="12" fill="#3C3530"/>
+      <!-- head -->
+      <ellipse cx="36" cy="32" rx="16" ry="18" fill="#C4A882"/>
+      <!-- hair -->
+      <ellipse cx="36" cy="18" rx="16" ry="10" fill="#6B4A2A"/>
+      <rect x="20" y="16" width="5" height="16" rx="2.5" fill="#6B4A2A"/>
+      <rect x="47" y="16" width="5" height="16" rx="2.5" fill="#6B4A2A"/>
+      <!-- eyes -->
+      <ellipse cx="29" cy="31" rx="2.2" ry="2.5" fill="#2C1810"/>
+      <ellipse cx="43" cy="31" rx="2.2" ry="2.5" fill="#2C1810"/>
+      <!-- eye shine -->
+      <circle cx="30" cy="30" r="0.7" fill="#F5F0E8"/>
+      <circle cx="44" cy="30" r="0.7" fill="#F5F0E8"/>
+      <!-- smile -->
+      <path d="M30 39 Q36 44 42 39" stroke="#9C6A4A" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+
+  <div class="logo">Harriett<span>.</span></div>
+  <div class="tagline">Pritchett-Moore Real Estate</div>
+
+  <!-- Progress under logo -->
+  <div class="progress-wrap">
+    <div class="progress-step active"></div>
+    <div class="progress-step"></div>
+    <div class="progress-step"></div>
+    <div class="progress-step"></div>
+  </div>
+
+  <div class="card">
+    <p class="card-eyebrow">Step 1 of 4</p>
+    <h2 class="card-heading">Before we get started, I need to know who I'm working with.</h2>
+    <p class="card-sub">I'll use your name and your signature in every message I draft. It'll sound like you — not like software.</p>
+    <div class="field">
+      <input type="text" placeholder="Your full name" value="Tanner Ashcraft" />
+      <input type="text" placeholder="How you sign off (e.g. T-Money, Tanner)" />
+    </div>
+    <div class="actions">
+      <button class="btn-primary">Let's go &rarr;</button>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

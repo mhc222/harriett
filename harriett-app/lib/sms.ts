@@ -102,6 +102,43 @@ interface AgentRow {
   sms_consent: string;
 }
 
+export function twilioSendingEnabled(): boolean {
+  return smsDeliveryMode() === "live";
+}
+
+export function smsDeliveryMode(): "disabled" | "dry_run" | "live" {
+  const explicitMode = process.env.SMS_DELIVERY_MODE;
+  if (explicitMode === "live" || explicitMode === "dry_run" || explicitMode === "disabled") {
+    return explicitMode;
+  }
+  return "dry_run";
+}
+
+function requiredTwilioSendConfig(): {
+  accountSid: string;
+  authToken: string;
+  fromNumber: string;
+  statusCallbackUrl?: string;
+} {
+  if (!twilioSendingEnabled()) {
+    throw new Error("SMS sending is disabled; set SMS_DELIVERY_MODE=live to enable it");
+  }
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_FROM_NUMBER;
+  if (!accountSid || !authToken || !fromNumber) {
+    throw new Error("Twilio SMS is enabled but its account SID, auth token, or sender number is missing");
+  }
+
+  return {
+    accountSid,
+    authToken,
+    fromNumber,
+    statusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || undefined,
+  };
+}
+
 export function assertSendAllowed(agent: AgentRow): void {
   if (!agent.phone) throw new Error(`agent ${agent.id} has no phone number`);
   if (agent.sms_consent !== "opted_in") {
@@ -111,8 +148,8 @@ export function assertSendAllowed(agent: AgentRow): void {
 
 export async function sendAgentSms(
   db: SupabaseClient,
-  opts: { agentId: string; body: string; dealId?: string }
-): Promise<{ messageId: string; providerMessageId: string }> {
+  opts: { agentId: string; body: string; dealId?: string; inReplyToId?: string }
+): Promise<{ messageId: string; providerMessageId?: string; dryRun?: boolean }> {
   const { data: agent, error } = await db
     .from("agents")
     .select("id, office_id, name, phone, sms_consent")
@@ -121,6 +158,8 @@ export async function sendAgentSms(
   if (error || !agent) throw new Error(`agent ${opts.agentId} not found`);
 
   assertSendAllowed(agent);
+  const deliveryMode = smsDeliveryMode();
+  const twilioConfig = deliveryMode === "live" ? requiredTwilioSendConfig() : null;
 
   const violation = smsGuardrailViolation(opts.body);
   if (violation) {
@@ -135,36 +174,88 @@ export async function sendAgentSms(
     throw new Error(`sms blocked by content guardrail: ${violation}`);
   }
 
-  const { data: msg, error: msgError } = await db
-    .from("messages")
-    .insert({
-      office_id: agent.office_id,
-      deal_id: opts.dealId ?? null,
-      agent_id: agent.id,
-      direction: "outbound",
-      channel: "sms",
-      body: opts.body,
-      consumer_facing: false,
-      status: "queued",
-    })
-    .select("id")
-    .single();
-  if (msgError || !msg) throw new Error(`message row failed: ${msgError?.message}`);
+  let msg: { id: string; provider_message_id: string | null } | null = null;
+  if (opts.inReplyToId) {
+    const { data: existing } = await db
+      .from("messages")
+      .select("id, provider_message_id, status")
+      .eq("in_reply_to_id", opts.inReplyToId)
+      .maybeSingle();
+    if (existing?.provider_message_id) {
+      return { messageId: existing.id, providerMessageId: existing.provider_message_id };
+    }
+    if (existing && deliveryMode === "dry_run" && existing.status !== "failed") {
+      return { messageId: existing.id, dryRun: true };
+    }
+    msg = existing;
+  }
 
-  const sid = process.env.TWILIO_ACCOUNT_SID!;
+  if (!msg) {
+    const { data: inserted, error: msgError } = await db
+      .from("messages")
+      .insert({
+        office_id: agent.office_id,
+        deal_id: opts.dealId ?? null,
+        agent_id: agent.id,
+        direction: "outbound",
+        channel: "sms",
+        body: opts.body,
+        consumer_facing: false,
+        status: "queued",
+        in_reply_to_id: opts.inReplyToId ?? null,
+      })
+      .select("id, provider_message_id")
+      .single();
+    if (msgError || !inserted) throw new Error(`message row failed: ${msgError?.message}`);
+    msg = inserted;
+  }
+
+  if (deliveryMode === "dry_run") {
+    await db
+      .from("messages")
+      .update({ status: "draft", sent_at: null, provider_message_id: null })
+      .eq("id", msg.id);
+    await writeAudit(db, {
+      officeId: agent.office_id,
+      actor: "harriett",
+      agentId: agent.id,
+      dealId: opts.dealId,
+      action: "sms.dry_run_saved",
+      payload: { messageId: msg.id },
+    });
+    return { messageId: msg.id, dryRun: true };
+  }
+
+  if (deliveryMode === "disabled") {
+    await db.from("messages").update({ status: "draft" }).eq("id", msg.id);
+    await writeAudit(db, {
+      officeId: agent.office_id,
+      actor: "harriett",
+      agentId: agent.id,
+      dealId: opts.dealId,
+      action: "sms.send_skipped_disabled",
+      payload: { messageId: msg.id },
+    });
+    return { messageId: msg.id };
+  }
+
   const res = await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
+    `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig!.accountSid}/Messages.json`,
     {
       method: "POST",
       headers: {
         Authorization:
-          "Basic " + Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64"),
+          "Basic " +
+          Buffer.from(`${twilioConfig!.accountSid}:${twilioConfig!.authToken}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
         To: agent.phone!,
-        From: process.env.TWILIO_FROM_NUMBER!,
+        From: twilioConfig!.fromNumber,
         Body: opts.body,
+        ...(twilioConfig!.statusCallbackUrl
+          ? { StatusCallback: twilioConfig!.statusCallbackUrl }
+          : {}),
       }),
     }
   );
