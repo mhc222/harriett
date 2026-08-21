@@ -22,11 +22,51 @@ export function addDays(isoDate: string, days: number): string {
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+function dayOfWeek(isoDate: string): number {
+  assertIsoDate(isoDate);
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+export function isBusinessDay(isoDate: string): boolean {
+  const day = dayOfWeek(isoDate);
+  return day !== 0 && day !== 6;
+}
+
+export function addBusinessDays(isoDate: string, days: number): string {
+  assertIsoDate(isoDate);
+  if (days === 0) return isoDate;
+
+  const direction = days > 0 ? 1 : -1;
+  let remaining = Math.abs(days);
+  let cursor = isoDate;
+
+  while (remaining > 0) {
+    cursor = addDays(cursor, direction);
+    if (isBusinessDay(cursor)) remaining -= 1;
+  }
+
+  return cursor;
+}
+
+export function nextMondayAfter(isoDate: string): string {
+  assertIsoDate(isoDate);
+  let cursor = addDays(isoDate, 1);
+  while (dayOfWeek(cursor) !== 1) {
+    cursor = addDays(cursor, 1);
+  }
+  return cursor;
+}
+
 // Federal lead-based paint assessment period: 10 calendar days from contract
 // acceptance unless the parties agree otherwise (42 USC 4852d). Anchored on
 // contract acceptance date. Never on listing or closing dates.
 export function leadPaintWindowEnd(contractAcceptanceDate: string): string {
   return addDays(contractAcceptanceDate, 10);
+}
+
+export function closingDisclosureDeadline(closingDate: string): string {
+  return addBusinessDays(closingDate, -3);
 }
 
 // Reminder dates ahead of an event (7/3/1 pattern), oldest first.

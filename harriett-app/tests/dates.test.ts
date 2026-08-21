@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { addDays, assertIsoDate, leadPaintWindowEnd, reminderDates } from "@/lib/dates";
+import {
+  addBusinessDays,
+  addDays,
+  assertIsoDate,
+  closingDisclosureDeadline,
+  isBusinessDay,
+  leadPaintWindowEnd,
+  nextMondayAfter,
+  reminderDates,
+} from "@/lib/dates";
 
 describe("addDays", () => {
   it("adds within a month", () => {
@@ -38,6 +47,29 @@ describe("leadPaintWindowEnd", () => {
   it("anchors on acceptance, never closing", () => {
     // Regression guard for the demo bug that computed closing minus 10
     expect(leadPaintWindowEnd("2026-04-30")).not.toBe("2026-05-26");
+  });
+});
+
+describe("business-day helpers", () => {
+  it("identifies weekdays and weekends", () => {
+    expect(isBusinessDay("2026-06-05")).toBe(true);
+    expect(isBusinessDay("2026-06-06")).toBe(false);
+    expect(isBusinessDay("2026-06-07")).toBe(false);
+  });
+
+  it("adds and subtracts business days across weekends", () => {
+    expect(addBusinessDays("2026-06-05", 1)).toBe("2026-06-08");
+    expect(addBusinessDays("2026-06-08", -1)).toBe("2026-06-05");
+    expect(addBusinessDays("2026-06-05", -3)).toBe("2026-06-02");
+  });
+
+  it("finds the next Monday after a date", () => {
+    expect(nextMondayAfter("2026-04-30")).toBe("2026-05-04");
+    expect(nextMondayAfter("2026-05-04")).toBe("2026-05-11");
+  });
+
+  it("computes the TRID Closing Disclosure deadline", () => {
+    expect(closingDisclosureDeadline("2026-06-05")).toBe("2026-06-02");
   });
 });
 

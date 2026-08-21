@@ -1,6 +1,7 @@
 import type { DealFields } from "@/lib/contracts/deal";
 import type { ChecklistOutput } from "@/lib/contracts/checklist";
-import { addDays, leadPaintWindowEnd } from "./dates";
+import { addBusinessDays, addDays, leadPaintWindowEnd } from "./dates";
+import { formatTimingRulesForPrompt, type TimingAnchor } from "./transaction-timing-rules";
 
 interface Ids {
   officeId: string;
@@ -67,12 +68,64 @@ export interface ChecklistRow {
   required: boolean;
 }
 
+function anchorDate(deal: DealFields, anchor: TimingAnchor): string | null {
+  switch (anchor) {
+    case "listing_date":
+    case "mls_active_date":
+      return deal.listingDate;
+    case "contract_acceptance_date":
+      return deal.contractAcceptanceDate;
+    case "closing_date":
+      return deal.closingDate;
+    case "loan_application_date":
+    case "loan_type_change_date":
+    case "commission_ready_at":
+      return null;
+  }
+}
+
+function fallbackAnchorForCategory(
+  deal: DealFields,
+  category: ChecklistOutput["items"][number]["category"]
+): string | null {
+  if (category === "pre-listing" || category === "listing-active") {
+    return deal.listingDate;
+  }
+  if (category === "under-contract") {
+    return deal.contractAcceptanceDate;
+  }
+  if (category === "closing") {
+    return deal.closingDate;
+  }
+  return null;
+}
+
+function dueDateForChecklistItem(
+  deal: DealFields,
+  item: ChecklistOutput["items"][number]
+): string | null {
+  if (item.dueDateAnchor) {
+    const anchor = anchorDate(deal, item.dueDateAnchor);
+    if (!anchor) return null;
+    if (item.dueDateOffsetBusinessDays != null) {
+      return addBusinessDays(anchor, item.dueDateOffsetBusinessDays);
+    }
+    if (item.dueDateOffsetDays != null) {
+      return addDays(anchor, item.dueDateOffsetDays);
+    }
+    return anchor;
+  }
+
+  if (item.daysFromListing == null) return null;
+  const anchor = fallbackAnchorForCategory(deal, item.category);
+  return anchor ? addDays(anchor, item.daysFromListing) : null;
+}
+
 export function buildChecklistRows(
   output: ChecklistOutput,
   deal: DealFields,
   ids: Ids
 ): ChecklistRow[] {
-  const anchor = deal.listingDate ?? deal.contractAcceptanceDate ?? null;
   return output.items.map((item) => ({
     office_id: ids.officeId,
     deal_id: ids.dealId,
@@ -80,10 +133,7 @@ export function buildChecklistRows(
     category: item.category,
     title: item.title,
     detail: item.detail,
-    due_date:
-      anchor !== null && item.daysFromListing !== null
-        ? addDays(anchor, item.daysFromListing)
-        : null,
+    due_date: dueDateForChecklistItem(deal, item),
     required: item.required,
   }));
 }
@@ -107,5 +157,8 @@ Flags:
 - Alabama buyer-beware: ${deal.flags.buyerBeware}
 - FHA loan: ${deal.flags.fhaLoan}
 - Loan type changed mid-transaction: ${deal.flags.loanTypeChanged}
-- Relocation company involved: ${deal.flags.relocationCompany}`;
+- Relocation company involved: ${deal.flags.relocationCompany}
+
+Timing rules to apply when relevant:
+${formatTimingRulesForPrompt()}`;
 }

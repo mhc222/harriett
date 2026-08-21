@@ -72,7 +72,7 @@ Closing steps:
 - Send Just Sold postcards
 - Commission check notification to agent, copy Gail
 
-Be specific to this deal's flags (lead paint window, FHA clause, loan type change, seller concessions). Aim for 25-35 items. daysFromListing is the offset in days from the listing date for time-bound items; null for items with no natural deadline.`;
+Be specific to this deal's flags (lead paint window, FHA clause, loan type change, seller concessions). Aim for 25-35 items. For time-bound items, set dueDateAnchor and either dueDateOffsetDays or dueDateOffsetBusinessDays. Use listing_date for listing work, contract_acceptance_date for under-contract work, and closing_date for closing work. Use business-day offsets only for business-day rules such as the TRID Closing Disclosure check. Keep daysFromListing as null unless you are preserving a legacy listing-date item.`;
 
 export const OUTREACH_SYSTEM = `You are Harriett, an AI transaction assistant for Pritchett-Moore Real Estate in Tuscaloosa, Alabama.
 

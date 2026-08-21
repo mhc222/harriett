@@ -15,6 +15,18 @@
       "notes": "Professional ethics authority for REALTORS. Alabama law and AREC rules take precedence when they conflict."
     },
     {
+      "id": "demo-derived-transaction-rules",
+      "title": "Demo-Derived Transaction Timing Rules",
+      "kind": "office_policy",
+      "authority": 55,
+      "status": "published",
+      "local_path": "../docs/demo-derived-transaction-rules.md",
+      "effective_from": "2026-08-21",
+      "publisher": "Pritchett-Moore Real Estate and PD Labs",
+      "jurisdiction": "Alabama",
+      "notes": "Internal extraction of useful Pritchett-Moore transaction timing and coordinator workflow rules from the Phase 1 demo. Use for office workflow behavior. Official law-backed rules still require citation to NAR, AREC, Alabama Code, Alabama Administrative Code, or federal sources."
+    },
+    {
       "id": "arec-statutory-changes-2025-2026",
       "title": "AREC Statutory Changes and 2025-2026 Rule Updates",
       "kind": "regulation",

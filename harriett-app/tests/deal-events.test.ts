@@ -82,35 +82,81 @@ describe("buildChecklistRows", () => {
     items: [
       {
         category: "under-contract" as const,
-        title: "Net Sheet for offer",
+        title: "Lead paint window ends",
         detail: null,
-        daysFromListing: 3,
+        dueDateAnchor: "contract_acceptance_date" as const,
+        dueDateOffsetDays: 10,
+        dueDateOffsetBusinessDays: null,
+        daysFromListing: null,
         required: true,
       },
       {
         category: "closing" as const,
-        title: "Load HUD into Instanet",
+        title: "Closing Disclosure check",
         detail: null,
+        dueDateAnchor: "closing_date" as const,
+        dueDateOffsetDays: null,
+        dueDateOffsetBusinessDays: -3,
         daysFromListing: null,
         required: true,
       },
     ],
   };
 
-  it("computes due dates from the listing date anchor", () => {
+  it("computes due dates from explicit anchors and offsets", () => {
     const rows = buildChecklistRows(output, gordo, ids);
-    expect(rows[0].due_date).toBe("2025-11-19");
-    expect(rows[1].due_date).toBeNull();
+    expect(rows[0].due_date).toBe("2026-05-10");
+    expect(rows[1].due_date).toBe("2026-06-02");
   });
 
-  it("falls back to contract acceptance when there is no listing date", () => {
-    const rows = buildChecklistRows(output, { ...gordo, listingDate: null }, ids);
+  it("falls back by category for legacy daysFromListing values", () => {
+    const rows = buildChecklistRows(
+      {
+        items: [
+          {
+            category: "under-contract" as const,
+            title: "Legacy under-contract item",
+            detail: null,
+            daysFromListing: 3,
+            required: true,
+          },
+          {
+            category: "closing" as const,
+            title: "Legacy closing item",
+            detail: null,
+            daysFromListing: -2,
+            required: true,
+          },
+          {
+            category: "listing-active" as const,
+            title: "Legacy listing item",
+            detail: null,
+            daysFromListing: 1,
+            required: true,
+          },
+        ],
+      },
+      gordo,
+      ids
+    );
     expect(rows[0].due_date).toBe("2026-05-03");
+    expect(rows[1].due_date).toBe("2026-06-03");
+    expect(rows[2].due_date).toBe("2025-11-17");
   });
 
   it("leaves due dates null with no anchor at all", () => {
     const rows = buildChecklistRows(
-      output,
+      {
+        items: [
+          {
+            category: "under-contract" as const,
+            title: "No contract anchor",
+            detail: null,
+            daysFromListing: 3,
+            required: true,
+          },
+        ],
+      },
       { ...gordo, listingDate: null, contractAcceptanceDate: null },
       ids
     );
