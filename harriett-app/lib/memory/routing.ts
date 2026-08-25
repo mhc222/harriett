@@ -21,7 +21,7 @@ const INTENT_SOURCES: Record<AgentIntent["intent"], ContextSource[]> = {
   knowledge_lookup: ["knowledge"],
   writing: [],
   calendar: ["google_workspace"],
-  contact: ["microsoft_graph"],
+  contact: ["google_workspace"],
   email: ["google_workspace"],
   checklist: ["structured"],
   memory: ["memory"],

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { tasks } from "@trigger.dev/sdk";
 import { tool } from "ai";
 import { z } from "zod";
 import type {
@@ -12,9 +13,9 @@ import { searchKnowledge } from "@/lib/knowledge";
 import { SupabaseMemoryProvider } from "@/lib/memory";
 import { createPropertyTools } from "@/lib/ai/tools/properties";
 import { createGoogleWorkspaceTools } from "@/lib/ai/tools/google-workspace";
+import { parseGoogleActionPayload, ProposeGoogleActionInputSchema } from "@/lib/google-actions";
+import { decideGoogleAction } from "@/lib/google-action-approval";
 import type { ContextSource } from "@/lib/memory/routing";
-
-const JsonObjectSchema = z.record(z.string(), z.unknown());
 
 export function defineSkill<I, O>(definition: SkillDefinition<I, O>): SkillDefinition<I, O> {
   return definition;
@@ -240,32 +241,23 @@ const recallMemorySkill = defineSkill({
   },
 });
 
-const ProposeActionInput = z.object({
-  action: z.enum([
-    "calendar_create", "calendar_edit", "calendar_delete",
-    "contact_create", "contact_edit", "contact_delete",
-    "email_draft", "email_send",
-  ]),
-  summary: z.string().min(1).max(500),
-  recipientKind: z.enum(["internal", "agent", "vendor", "consumer"]).default("internal"),
-  payload: JsonObjectSchema,
-});
 const ProposeActionOutput = z.object({
   actionId: z.string().uuid(),
-  status: z.literal("proposed"),
-  requiredApprover: z.enum(["agent", "broker"]),
+  status: z.enum(["proposed", "approved"]),
+  requiredApprover: z.enum(["agent", "broker", "none"]),
   message: z.string(),
 });
 
 const proposeActionSkill = defineSkill({
-  name: "propose_outlook_action",
-  version: "1.0.0",
-  description: "Propose an exact Outlook email, calendar, or contact action for approval. This never performs the external action immediately.",
-  inputSchema: ProposeActionInput,
+  name: "propose_google_action",
+  version: "2.0.0",
+  description: "Propose an exact Google Gmail, Calendar, or Contacts action. The action follows the agent and broker approval rules before execution.",
+  inputSchema: ProposeGoogleActionInputSchema,
   outputSchema: ProposeActionOutput,
   risk: "external_write" as SkillRisk,
   approvalPolicy: () => "agent",
   execute: async (input, context) => {
+    const exactPayload = parseGoogleActionPayload(input.action, input.payload);
     const { data: profile } = await context.db
       .from("agent_profiles")
       .select("email_mode, action_permissions")
@@ -284,15 +276,12 @@ const proposeActionSkill = defineSkill({
       emailMode: profile?.email_mode ?? "draft_only",
       actionPermission: permission ?? "confirm",
     } as ApprovalContext & { risk: SkillRisk; channel: "calendar" | "contact" | "email" });
-    if (approval === "prohibited" || approval === "none") {
-      // External tools are intentionally shadow-mode in this phase. Even an
-      // agent setting of auto remains a proposed action until the connector is live.
-      if (approval === "prohibited") throw new Error("requested action is prohibited by policy");
-    }
-    const requiredApprover = input.recipientKind === "consumer" ? "broker" : "agent";
+    if (approval === "prohibited") throw new Error("requested action is prohibited by policy");
+    const requiredApprover = approval;
+    const status = approval === "none" ? "approved" : "proposed";
     const idempotencyKey = crypto
       .createHash("sha256")
-      .update(`${context.aiRunId}:${input.action}:${JSON.stringify(input.payload)}`)
+      .update(`${context.aiRunId}:${input.action}:${JSON.stringify(exactPayload)}`)
       .digest("hex");
     const { data, error } = await context.db
       .from("action_requests")
@@ -302,28 +291,124 @@ const proposeActionSkill = defineSkill({
         deal_id: context.dealId ?? null,
         ai_run_id: context.aiRunId,
         skill_name: input.action,
-        exact_payload: input.payload,
+        exact_payload: exactPayload,
         summary: input.summary,
         recipient_kind: input.recipientKind,
+        status,
         required_approver: requiredApprover,
+        approved_at: approval === "none" ? new Date().toISOString() : null,
         idempotency_key: idempotencyKey,
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       })
       .select("id")
       .single();
     if (error || !data) throw new Error(`action proposal failed: ${error?.message}`);
+    if (approval === "none") {
+      await tasks.trigger(
+        "execute-google-action",
+        { actionRequestId: data.id },
+        { idempotencyKey: ["google-action", data.id], idempotencyKeyTTL: "30d" }
+      );
+    }
     return {
       actionId: data.id,
-      status: "proposed" as const,
+      status,
       requiredApprover,
-      message: "I saved the exact action for review. Nothing has been sent or changed yet.",
+      message: approval === "none"
+        ? "I queued the approved Google action."
+        : "I saved the exact Google action for review. Nothing has been sent or changed yet.",
     };
+  },
+});
+
+const ListPendingActionsInput = z.object({ limit: z.number().int().min(1).max(10).default(5) });
+const ListPendingActionsOutput = z.object({
+  actions: z.array(z.object({
+    id: z.string().uuid(),
+    action: z.string(),
+    summary: z.string(),
+    exactPayload: z.unknown(),
+    requiredApprover: z.enum(["agent", "broker", "none"]),
+    createdAt: z.string(),
+  })),
+});
+
+const listPendingActionsSkill = defineSkill({
+  name: "list_pending_google_actions",
+  version: "1.0.0",
+  description: "List the most recent Google actions waiting for approval, including their exact details and IDs.",
+  inputSchema: ListPendingActionsInput,
+  outputSchema: ListPendingActionsOutput,
+  risk: "read" as SkillRisk,
+  approvalPolicy: () => "none",
+  execute: async (input, context) => {
+    const { data, error } = await context.db
+      .from("action_requests")
+      .select("id, skill_name, summary, exact_payload, required_approver, created_at")
+      .eq("office_id", context.officeId)
+      .eq("status", "proposed")
+      .order("created_at", { ascending: false })
+      .limit(input.limit);
+    if (error) throw new Error(`pending Google actions could not be loaded: ${error.message}`);
+    return { actions: (data ?? []).map((action) => ({
+      id: action.id,
+      action: action.skill_name,
+      summary: action.summary,
+      exactPayload: action.exact_payload,
+      requiredApprover: action.required_approver,
+      createdAt: action.created_at,
+    })) };
+  },
+});
+
+const DecideActionInput = z.object({
+  actionRequestId: z.string().uuid().optional(),
+  decision: z.enum(["approve", "reject"]),
+  reason: z.string().trim().max(1_000).optional(),
+});
+const DecideActionOutput = z.object({
+  actionRequestId: z.string().uuid(),
+  status: z.enum(["approved", "rejected"]),
+  runId: z.string().optional(),
+});
+
+const decideActionSkill = defineSkill({
+  name: "decide_google_action",
+  version: "1.0.0",
+  description: "Approve or reject one pending Google action. If no ID is provided, decide the newest pending action visible to this user.",
+  inputSchema: DecideActionInput,
+  outputSchema: DecideActionOutput,
+  risk: "external_write" as SkillRisk,
+  approvalPolicy: () => "none",
+  execute: async (input, context) => {
+    let actionRequestId = input.actionRequestId;
+    if (!actionRequestId) {
+      const { data, error } = await context.db
+        .from("action_requests")
+        .select("id")
+        .eq("office_id", context.officeId)
+        .eq("status", "proposed")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) throw new Error("there is no pending Google action to decide");
+      actionRequestId = data.id;
+    }
+    return decideGoogleAction({
+      db: context.db,
+      officeId: context.officeId,
+      actorAgentId: context.agentId,
+      actorRole: context.role,
+      actionRequestId: z.string().uuid().parse(actionRequestId),
+      decision: input.decision,
+      reason: input.reason,
+    });
   },
 });
 
 export function createRuntimeTools(
   context: SkillContext,
-  options?: { sources?: ContextSource[]; allowActionProposal?: boolean }
+  options?: { sources?: ContextSource[]; allowActionProposal?: boolean; allowApprovalDecision?: boolean }
 ) {
   const allowed = new Set<ContextSource>(options?.sources ?? [
     "structured",
@@ -360,10 +445,20 @@ export function createRuntimeTools(
       inputSchema: recallMemorySkill.inputSchema,
       execute: (input) => runSkill(recallMemorySkill, input, context),
     }) } : {}),
-    ...(options?.allowActionProposal ? { proposeOutlookAction: tool({
+    ...(options?.allowActionProposal ? { proposeGoogleAction: tool({
       description: proposeActionSkill.description,
       inputSchema: proposeActionSkill.inputSchema,
       execute: (input) => runSkill(proposeActionSkill, input, context),
+    }) } : {}),
+    ...(options?.allowApprovalDecision ? { listPendingGoogleActions: tool({
+      description: listPendingActionsSkill.description,
+      inputSchema: listPendingActionsSkill.inputSchema,
+      execute: (input) => runSkill(listPendingActionsSkill, input, context),
+    }) } : {}),
+    ...(options?.allowApprovalDecision ? { decideGoogleAction: tool({
+      description: decideActionSkill.description,
+      inputSchema: decideActionSkill.inputSchema,
+      execute: (input) => runSkill(decideActionSkill, input, context),
     }) } : {}),
     ...(allowed.has("property_provider") ? propertyTools : {}),
     ...(allowed.has("google_workspace") ? googleWorkspaceTools : {}),
@@ -375,5 +470,7 @@ export const skillRegistry = {
   readChecklist: readChecklistSkill,
   searchOfficeKnowledge: searchKnowledgeSkill,
   recallAgentMemory: recallMemorySkill,
-  proposeOutlookAction: proposeActionSkill,
+  proposeGoogleAction: proposeActionSkill,
+  listPendingGoogleActions: listPendingActionsSkill,
+  decideGoogleAction: decideActionSkill,
 } as const;

@@ -1383,6 +1383,33 @@ button:disabled {
   gap: var(--space-sm);
 }
 
+.approval-record {
+  align-items: flex-start;
+}
+
+.approval-payload {
+  width: min(100%, 46rem);
+}
+
+.approval-payload summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.approval-payload pre {
+  margin-top: 0.65rem;
+  max-height: 20rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
 .timeline {
   border-top: 1px solid var(--line);
 }

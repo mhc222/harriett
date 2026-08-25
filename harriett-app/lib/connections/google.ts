@@ -78,7 +78,9 @@ export async function saveGoogleConnection(input: {
     calendar: true,
     calendar_read: true,
     calendar_write: true,
-    contacts: false,
+    contacts: true,
+    contacts_read: true,
+    contacts_write: true,
   };
   const { data, error } = await input.db.rpc("upsert_google_connection", {
     p_external_user_id: input.identity.sub,
