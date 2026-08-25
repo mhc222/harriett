@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { writeAudit } from "@/lib/audit";
 import { authenticatedContext } from "@/lib/auth-context";
 import { createUserClient } from "@/lib/db/server";
 import {
@@ -46,21 +45,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (error || !evidenceId) {
     return NextResponse.json({ error: error?.message ?? "correction could not be saved" }, { status: 403 });
   }
-
-  await writeAudit(db, {
-    officeId: auth.officeId,
-    actor: "user",
-    actorId: auth.user.id,
-    agentId: auth.agentId,
-    dealId: dealId.data,
-    action: "deal.fact_corrected",
-    payload: {
-      fieldName: body.data.fieldName,
-      evidenceId,
-      supersedesEvidenceId: body.data.supersedesEvidenceId ?? null,
-      reason: body.data.reason,
-    },
-  });
 
   return NextResponse.json({ evidenceId, value: correctedValue });
 }

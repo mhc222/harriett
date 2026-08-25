@@ -92,6 +92,7 @@ declare
   office uuid := app.office_id();
   agent uuid := app.agent_id();
   safe_value jsonb := coalesce(corrected_value, 'null'::jsonb);
+  prior_value jsonb;
 begin
   if not (requested_field_name = any(allowed_fields)) then
     raise exception 'unsupported deal fact';
@@ -99,6 +100,13 @@ begin
   if correction_note is null or length(trim(correction_note)) < 3 then
     raise exception 'correction reason is required';
   end if;
+
+  select d.parsed_fields -> requested_field_name
+    into prior_value
+    from public.deals d
+    where d.id = requested_deal_id
+      and d.office_id = office;
+  if not found then raise exception 'deal not found or update not permitted'; end if;
 
   if superseded_evidence_id is not null then
     update public.deal_field_evidence
@@ -140,6 +148,20 @@ begin
     office, requested_deal_id, agent, 'deal.fact_corrected', 'user',
     jsonb_build_object(
       'fieldName', requested_field_name,
+      'evidenceId', new_evidence_id,
+      'supersededEvidenceId', superseded_evidence_id,
+      'reason', trim(correction_note)
+    )
+  );
+
+  insert into public.audit_log (
+    office_id, actor, actor_id, agent_id, deal_id, action, payload
+  ) values (
+    office, 'user', auth.uid(), agent, requested_deal_id, 'deal.fact_corrected',
+    jsonb_build_object(
+      'fieldName', requested_field_name,
+      'previousValue', prior_value,
+      'correctedValue', safe_value,
       'evidenceId', new_evidence_id,
       'supersededEvidenceId', superseded_evidence_id,
       'reason', trim(correction_note)
