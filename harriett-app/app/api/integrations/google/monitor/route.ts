@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 import { authenticatedContext } from "@/lib/auth-context";
+import { loadGoogleConnectionTokens } from "@/lib/connections/google";
 import { createUserClient } from "@/lib/db/server";
 import { googleMonitoringConfigured } from "@/lib/integrations/google";
 import type { configureGoogleMonitoring } from "@/trigger/google-monitoring";
@@ -14,17 +15,11 @@ export async function POST(request: NextRequest) {
   if (!googleMonitoringConfigured()) {
     return NextResponse.redirect(new URL("/connections?google=monitoring_not_configured", request.url), 303);
   }
-  const { data, error } = await db
-    .from("connections")
-    .select("id")
-    .eq("provider", "google")
-    .eq("status", "connected")
-    .eq("agent_id", auth.agentId)
-    .single();
-  if (error || !data) {
+  const connection = await loadGoogleConnectionTokens(db);
+  if (!connection) {
     return NextResponse.redirect(new URL("/connections?google=not_connected", request.url), 303);
   }
-  const connectionId = z.string().uuid().parse(data.id);
+  const connectionId = z.string().uuid().parse(connection.connectionId);
   const run = await tasks.trigger<typeof configureGoogleMonitoring>(
     "configure-google-monitoring",
     { connectionId },

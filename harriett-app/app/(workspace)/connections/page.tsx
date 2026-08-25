@@ -17,7 +17,7 @@ const providerLabels: Record<string, string> = {
 };
 
 const googleMessages: Record<string, string> = {
-  connected: "Google account connected. Harriett can monitor Gmail, prepare drafts, send approved email, and work with this account's calendars.",
+  connected: "Google account connected. Harriett can monitor Gmail, prepare drafts, send approved email, manage calendars, and work with Google Contacts.",
   disconnected: "Google account disconnected and its stored credentials were removed.",
   denied: "Google connection was canceled. No account access was stored.",
   invalid_state: "The Google connection request expired. Start the connection again.",
@@ -28,6 +28,7 @@ const googleMessages: Record<string, string> = {
   monitoring_queued: "Google monitoring setup is running. New Gmail and Calendar changes will arrive by push notification.",
   monitoring_not_configured: "Google push monitoring still needs its Pub/Sub settings.",
   not_connected: "Connect Google before starting monitoring.",
+  monitoring_active: "Google is connected. Gmail and Calendar monitoring are active.",
 };
 
 const MonitoringStatusSchema = z.object({
@@ -76,12 +77,19 @@ export default async function ConnectionsPage({
     : { data: [] };
   const parsedMonitoring = z.array(MonitoringStatusSchema).safeParse(rawMonitoring ?? []);
   const monitoring = parsedMonitoring.success ? parsedMonitoring.data : [];
-  const monitoringActive = monitoring.some((item) => item.status === "active");
+  const activeMonitoringResources = new Set(
+    monitoring.filter((item) => item.status === "active").map((item) => item.resource_type)
+  );
+  const monitoringActive = activeMonitoringResources.has("gmail_inbox")
+    && activeMonitoringResources.has("calendar_events");
+  const displayedStatus = status === "not_connected" && googleConnected
+    ? (monitoringActive ? "monitoring_active" : "monitoring_queued")
+    : status;
   const otherConnections = connections?.filter((connection) => connection.provider !== "google") ?? [];
   return (
     <div className="page-stack">
       <header className="page-heading"><div><p className="eyebrow">Connected systems</p><h1>Connections</h1><p className="page-intro">Provider health, available capabilities, and the last successful synchronization.</p></div></header>
-      {status && googleMessages[status] && <p className="connection-notice" role="status">{googleMessages[status]}</p>}
+      {displayedStatus && googleMessages[displayedStatus] && <p className="connection-notice" role="status">{googleMessages[displayedStatus]}</p>}
       <section aria-labelledby="connections-heading">
         <div className="section-heading"><div><p className="section-kicker">Integration health</p><h2 id="connections-heading">Systems</h2></div></div>
         <div className="record-list">
@@ -93,6 +101,7 @@ export default async function ConnectionsPage({
             <span className="record-secondary">
               <span><Mail size={14} /> Inbox monitoring, drafts, and approved sends</span>
               <span><CalendarDays size={14} /> Calendar monitoring and event management</span>
+              <span><Link2 size={14} /> Google Contacts search and management</span>
             </span>
             <span className="connection-controls">
               <span className={`status-label connection-${googleConnection?.status ?? "disconnected"}`}>
