@@ -123,4 +123,31 @@ describe("CMA expert prep", () => {
     expect(cma.candidates.some((candidate) => candidate.source === "brightdata")).toBe(true);
     expect(cma.candidates.some((candidate) => candidate.source === "rentcast")).toBe(true);
   });
+
+  it("caps the primary comp set and demotes extreme price outliers", () => {
+    const sold = Array.from({ length: 8 }, (_, index) => ({
+      id: `sold-${index}`,
+      source: "rentcast" as const,
+      sourceUrl: null,
+      formattedAddress: `${200 + index} Main St, Tuscaloosa, AL 35401`,
+      propertyType: "Single Family",
+      bedrooms: 3,
+      bathrooms: 2,
+      squareFootage: 2000,
+      yearBuilt: 2000,
+      status: "Sold",
+      lastSaleDate: "2026-07-01",
+      price: index === 0 ? 2_000_000 : 315000 + index * 1000,
+      distance: 0.2 + index * 0.1,
+      daysOld: 55,
+    }));
+    const cma = buildCmaPrep(estimate, "2026-08-24T12:00:00.000Z", sold);
+
+    expect(cma.counts.included).toBeLessThanOrEqual(6);
+    expect(cma.candidates.find((candidate) => candidate.id === "sold-0")).toMatchObject({
+      decision: "review",
+    });
+    expect(cma.candidates.find((candidate) => candidate.id === "sold-0")?.concerns.join(" "))
+      .toContain("extreme outlier");
+  });
 });

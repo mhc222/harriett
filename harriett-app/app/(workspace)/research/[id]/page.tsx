@@ -18,7 +18,7 @@ import { ResearchActions } from "@/components/research-actions";
 import { buildCmaPrep } from "@/lib/cma";
 import { createUserClient } from "@/lib/db/server";
 import { BrightDataEnrichmentResultSchema } from "@/lib/integrations/bright-data";
-import { PropertyValueEstimateSchema } from "@/lib/integrations/rentcast";
+import { PropertyResearchResultSchema } from "@/lib/integrations/rentcast";
 import {
   googleMapsSearchUrl,
   zillowSearchUrl,
@@ -82,7 +82,7 @@ export default async function ResearchDetailPage({ params }: { params: Promise<{
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const estimate = PropertyValueEstimateSchema.safeParse(research.result);
+  const estimate = PropertyResearchResultSchema.safeParse(research.result);
   const portalResult = BrightDataEnrichmentResultSchema.safeParse(portalResearch?.result);
   const sellerBrief = artifacts?.find((artifact) => artifact.kind === "seller_brief");
   const cmaDraft = artifacts?.find((artifact) => artifact.kind === "cma_draft");
@@ -92,7 +92,10 @@ export default async function ResearchDetailPage({ params }: { params: Promise<{
     ? buildCmaPrep(
         estimate.data,
         research.source_observed_at,
-        portalResult.success ? portalResult.data.comparables : []
+        [
+          ...estimate.data.soldComparables,
+          ...(portalResult.success ? portalResult.data.comparables : []),
+        ]
       )
     : null;
 

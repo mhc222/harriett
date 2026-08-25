@@ -3,6 +3,7 @@ import { writeAudit } from "@/lib/audit";
 import { buildCmaPrep } from "@/lib/cma";
 import {
   getPropertyValueEstimate,
+  getSoldPropertyComparables,
   getSaleListing,
   searchSaleListings,
   type PropertySearchInput,
@@ -159,7 +160,23 @@ export async function preparePropertyCma(
   input: PropertyValueInput
 ) {
   const result = await estimatePropertyValue(context, input);
-  const cmaPrep = buildCmaPrep(result.estimate);
+  const soldComparables = await withProviderSyncTrace(
+    { db: context.db, officeId: context.officeId, provider: "rentcast" },
+    () => getSoldPropertyComparables(input, result.estimate.subjectProperty),
+    (comparables) => ({ receivedCount: comparables.length, changedCount: 0 })
+  );
+  const cmaPrep = buildCmaPrep(result.estimate, new Date().toISOString(), soldComparables);
+  const { error: researchUpdateError } = await context.db
+    .from("property_research_runs")
+    .update({
+      research_type: "cma_prep",
+      result: { ...result.estimate, soldComparables },
+      provider_call_count: 2,
+    })
+    .eq("id", result.researchId);
+  if (researchUpdateError) {
+    throw new Error(`CMA research update failed: ${researchUpdateError.message}`);
+  }
   await writeAudit(context.db, {
     officeId: context.officeId,
     actor: context.actor,
@@ -172,6 +189,7 @@ export async function preparePropertyCma(
       methodologyVersion: cmaPrep.methodologyVersion,
       confidenceScore: cmaPrep.confidence.score,
       includedCount: cmaPrep.counts.included,
+      soldComparableCount: soldComparables.length,
       reviewCount: cmaPrep.counts.review,
       excludedCount: cmaPrep.counts.excluded,
     },

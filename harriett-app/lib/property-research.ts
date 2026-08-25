@@ -49,6 +49,9 @@ export function publicAppUrl(): string {
 
   const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
   if (vercelHost) return `https://${vercelHost.replace(/^https?:\/\//, "")}`;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_APP_URL is required outside Vercel in production");
+  }
   return "http://localhost:3000";
 }
 

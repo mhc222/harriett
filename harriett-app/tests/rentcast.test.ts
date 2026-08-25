@@ -3,6 +3,7 @@ import {
   PropertySearchInputSchema,
   RentCastError,
   getPropertyValueEstimate,
+  getSoldPropertyComparables,
   getSaleListing,
   searchSaleListings,
 } from "@/lib/integrations/rentcast";
@@ -124,6 +125,52 @@ describe("RentCast integration", () => {
     expect(requestUrl.pathname).toBe("/v1/avm/value");
     expect(requestUrl.searchParams.get("compCount")).toBe("5");
     expect(requestUrl.searchParams.get("lookupSubjectAttributes")).toBe("true");
+  });
+
+  it("retrieves nearby sold property records for CMA evidence", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{
+        id: "sold-comp-1",
+        formattedAddress: "125 Main St, Tuscaloosa, AL 35401",
+        latitude: 33.21,
+        longitude: -87.55,
+        propertyType: "Single Family",
+        bedrooms: 3,
+        bathrooms: 2,
+        squareFootage: 1900,
+        yearBuilt: 2002,
+        lastSaleDate: new Date(Date.now() - 30 * 86_400_000).toISOString(),
+        lastSalePrice: 315000,
+      }]), { status: 200, headers: { "Content-Type": "application/json" } })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await getSoldPropertyComparables(
+      { address: LISTING.formattedAddress, compCount: 10 },
+      {
+        id: LISTING.id,
+        formattedAddress: LISTING.formattedAddress,
+        latitude: 33.2,
+        longitude: -87.55,
+        propertyType: "Single Family",
+        bedrooms: 3,
+        bathrooms: 2,
+        squareFootage: 1800,
+      }
+    );
+
+    expect(result[0]).toMatchObject({
+      id: "sold-comp-1",
+      source: "rentcast",
+      status: "Sold",
+      price: 315000,
+    });
+    expect(result[0].distance).toBeGreaterThan(0);
+    const requestUrl = new URL(fetchMock.mock.calls[0][0]);
+    expect(requestUrl.pathname).toBe("/v1/properties");
+    expect(requestUrl.searchParams.get("saleDateRange")).toBe("365");
+    expect(requestUrl.searchParams.get("bedrooms")).toBe("2:4");
+    expect(requestUrl.searchParams.get("squareFootage")).toBe("1350:2250");
   });
 
   it("fails closed when RentCast changes its response shape", async () => {

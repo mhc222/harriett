@@ -75,7 +75,7 @@ export type CmaPrep = z.infer<typeof CmaPrepSchema>;
 
 export interface CmaSupplementalComparable {
   id: string;
-  source: "brightdata";
+  source: "rentcast" | "brightdata";
   sourceUrl?: string | null;
   formattedAddress: string;
   propertyType?: string | null;
@@ -236,6 +236,13 @@ function scoreCandidate(
     reasons.push("The provider response contains an observed sold status or sale date.");
   }
 
+  const outsidePlausibleRange = comp.price < estimate.priceRangeLow * 0.5
+    || comp.price > estimate.priceRangeHigh * 1.5;
+  if (outsidePlausibleRange) {
+    score -= 35;
+    concerns.push("Sale price is an extreme outlier relative to the provider range and requires separate verification.");
+  }
+
   const boundedScore = Math.max(0, Math.min(100, Math.round(score)));
   const decision = hardMismatch || boundedScore < 50
     ? "exclude"
@@ -276,23 +283,38 @@ export function buildCmaPrep(
     source: "rentcast",
     sourceUrl: null,
   }));
-  const existingAddresses = new Set(rentCastComparables.map((comp) => comp.formattedAddress
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "")));
+  const supplementalAddresses = new Set<string>();
   const uniqueSupplemental = supplementalComparables.filter((comp) => {
     const address = comp.formattedAddress.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (existingAddresses.has(address)) return false;
-    existingAddresses.add(address);
+    if (supplementalAddresses.has(address)) return false;
+    supplementalAddresses.add(address);
     return true;
   });
-  const ranked = [...rentCastComparables, ...uniqueSupplemental]
+  const uniqueListings = rentCastComparables.filter((comp) => !supplementalAddresses.has(
+    comp.formattedAddress.toLowerCase().replace(/[^a-z0-9]/g, "")
+  ));
+  const ranked = [...uniqueSupplemental, ...uniqueListings]
     .map((comp) => scoreCandidate(estimate, comp))
     .sort((left, right) => right.score - left.score)
     .map((candidate, index) => ({ ...candidate, rank: index + 1 }));
-  const included = ranked.filter((candidate) => candidate.decision === "include");
+  let selectedCount = 0;
+  const selectedCandidates = ranked.map((candidate) => {
+    if (candidate.decision !== "include") return candidate;
+    selectedCount += 1;
+    if (selectedCount <= 6) return candidate;
+    return {
+      ...candidate,
+      decision: "review" as const,
+      concerns: [
+        ...candidate.concerns,
+        "Qualified on available fields but was not selected because the workfile is capped at six primary comps.",
+      ],
+    };
+  });
+  const included = selectedCandidates.filter((candidate) => candidate.decision === "include");
   const considered = included.length >= 3
     ? included
-    : ranked.filter((candidate) => candidate.decision !== "exclude").slice(0, 3);
+    : selectedCandidates.filter((candidate) => candidate.decision !== "exclude").slice(0, 3);
   const rawPrices = considered.map((candidate) => candidate.price).filter((price) => price > 0);
   const pricePerSquareFeet = considered
     .map((candidate) => candidate.pricePerSquareFoot)
@@ -378,12 +400,12 @@ export function buildCmaPrep(
       subjectIndicationFromPricePerSquareFoot: subjectPpsfIndication,
     },
     confidence: { score, grade, rationale: confidenceRationale },
-    candidates: ranked,
+    candidates: selectedCandidates,
     counts: {
-      total: ranked.length,
+      total: selectedCandidates.length,
       included: included.length,
-      review: ranked.filter((candidate) => candidate.decision === "review").length,
-      excluded: ranked.filter((candidate) => candidate.decision === "exclude").length,
+      review: selectedCandidates.filter((candidate) => candidate.decision === "review").length,
+      excluded: selectedCandidates.filter((candidate) => candidate.decision === "exclude").length,
     },
     evidenceGaps,
     adjustmentPolicy: [

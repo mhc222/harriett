@@ -195,6 +195,29 @@ export const PropertyValueEstimateSchema = z.object({
 
 export type PropertyValueEstimate = z.infer<typeof PropertyValueEstimateSchema>;
 
+export const SoldComparableSchema = z.object({
+  id: z.string(),
+  source: z.literal("rentcast"),
+  sourceUrl: z.null(),
+  formattedAddress: z.string(),
+  propertyType: OptionalString,
+  bedrooms: OptionalNumber,
+  bathrooms: OptionalNumber,
+  squareFootage: OptionalNumber,
+  yearBuilt: OptionalNumber,
+  status: z.literal("Sold"),
+  lastSaleDate: z.string(),
+  price: z.number().positive(),
+  distance: OptionalNumber,
+  daysOld: z.number().int().nonnegative(),
+});
+
+export type SoldComparable = z.infer<typeof SoldComparableSchema>;
+
+export const PropertyResearchResultSchema = PropertyValueEstimateSchema.extend({
+  soldComparables: z.array(SoldComparableSchema).optional().default([]),
+});
+
 export class RentCastError extends Error {
   constructor(
     message: string,
@@ -340,4 +363,88 @@ export async function getPropertyValueEstimate(
     PropertyValueEstimateSchema
   );
   return response.data;
+}
+
+const SoldPropertyRecordSchema = z.object({
+  id: z.string(),
+  formattedAddress: z.string(),
+  latitude: OptionalNumber,
+  longitude: OptionalNumber,
+  propertyType: OptionalString,
+  bedrooms: OptionalNumber,
+  bathrooms: OptionalNumber,
+  squareFootage: OptionalNumber,
+  yearBuilt: OptionalNumber,
+  lastSaleDate: z.string(),
+  lastSalePrice: z.number().positive(),
+});
+
+function haversineMiles(
+  fromLatitude: number | null | undefined,
+  fromLongitude: number | null | undefined,
+  toLatitude: number | null | undefined,
+  toLongitude: number | null | undefined
+): number | null {
+  if (fromLatitude == null || fromLongitude == null || toLatitude == null || toLongitude == null) {
+    return null;
+  }
+  const radians = (degrees: number) => degrees * Math.PI / 180;
+  const latitudeDelta = radians(toLatitude - fromLatitude);
+  const longitudeDelta = radians(toLongitude - fromLongitude);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(radians(fromLatitude)) * Math.cos(radians(toLatitude))
+    * Math.sin(longitudeDelta / 2) ** 2;
+  return 3958.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export async function getSoldPropertyComparables(
+  input: PropertyValueInput,
+  subject: PropertyValueEstimate["subjectProperty"]
+): Promise<SoldComparable[]> {
+  const parsed = PropertyValueInputSchema.parse(input);
+  const params = new URLSearchParams({
+    address: subject.formattedAddress,
+    radius: String(parsed.maxRadius ?? 3),
+    saleDateRange: String(parsed.daysOld ?? 365),
+    limit: "25",
+  });
+  setIfDefined(params, "propertyType", subject.propertyType);
+  if (subject.bedrooms != null) {
+    params.set("bedrooms", `${Math.max(0, subject.bedrooms - 1)}:${subject.bedrooms + 1}`);
+  }
+  if (subject.bathrooms != null) {
+    params.set("bathrooms", `${Math.max(0, subject.bathrooms - 1)}:${subject.bathrooms + 1}`);
+  }
+  if (subject.squareFootage != null) {
+    params.set(
+      "squareFootage",
+      `${Math.round(subject.squareFootage * 0.75)}:${Math.round(subject.squareFootage * 1.25)}`
+    );
+  }
+
+  const response = await rentCastRequest(`/properties?${params.toString()}`, z.array(SoldPropertyRecordSchema));
+  const now = Date.now();
+  return response.data
+    .filter((property) => property.id !== subject.id)
+    .map((property) => SoldComparableSchema.parse({
+      id: property.id,
+      source: "rentcast",
+      sourceUrl: null,
+      formattedAddress: property.formattedAddress,
+      propertyType: property.propertyType,
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      squareFootage: property.squareFootage,
+      yearBuilt: property.yearBuilt,
+      status: "Sold",
+      lastSaleDate: property.lastSaleDate,
+      price: property.lastSalePrice,
+      distance: haversineMiles(
+        subject.latitude,
+        subject.longitude,
+        property.latitude,
+        property.longitude
+      ),
+      daysOld: Math.max(0, Math.floor((now - Date.parse(property.lastSaleDate)) / 86_400_000)),
+    }));
 }

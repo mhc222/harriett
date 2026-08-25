@@ -5,7 +5,7 @@ import { authenticatedContext } from "@/lib/auth-context";
 import { buildCmaPrep, renderCmaPrep } from "@/lib/cma";
 import { createUserClient } from "@/lib/db/server";
 import { BrightDataEnrichmentResultSchema } from "@/lib/integrations/bright-data";
-import { PropertyValueEstimateSchema } from "@/lib/integrations/rentcast";
+import { PropertyResearchResultSchema } from "@/lib/integrations/rentcast";
 
 const IdSchema = z.string().uuid();
 
@@ -34,7 +34,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     .single();
   if (error || !research) return NextResponse.json({ error: "research was not found" }, { status: 404 });
 
-  const estimate = PropertyValueEstimateSchema.safeParse(research.result);
+  const estimate = PropertyResearchResultSchema.safeParse(research.result);
   if (!estimate.success) {
     return NextResponse.json({ error: "this research does not contain a valuation" }, { status: 409 });
   }
@@ -53,7 +53,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const cma = buildCmaPrep(
     estimate.data,
     research.source_observed_at,
-    portalResult.success ? portalResult.data.comparables : []
+    [
+      ...estimate.data.soldComparables,
+      ...(portalResult.success ? portalResult.data.comparables : []),
+    ]
   );
   const { data: artifact, error: artifactError } = await db
     .from("artifacts")
