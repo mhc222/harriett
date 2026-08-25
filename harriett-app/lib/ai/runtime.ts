@@ -1,4 +1,6 @@
 import { generateText, stepCountIs, type LanguageModel, type ModelMessage } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { openai } from "@ai-sdk/openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { classifyAgentIntent } from "@/lib/ai/classify";
 import { createRuntimeTools } from "@/lib/ai/skill-registry";
@@ -76,7 +78,7 @@ export function renderTemporalContext(now: Date, timeZone: string): string {
 }
 
 export function requiresFirstStepTool(intent: string): boolean {
-  return ["calendar", "contact", "email", "task", "history", "approval"].includes(intent);
+  return ["calendar", "contact", "email", "task", "document_lookup", "web_research", "history", "approval"].includes(intent);
 }
 
 interface ContinuityMessage {
@@ -171,6 +173,10 @@ Evidence rules:
 - For requests to draft or send email, create or change calendar events, or manage contacts, use proposeGoogleAction with the exact payload. Do not claim the action happened until its approval and execution status says completed.
 - Use findGoogleFreeTime for availability questions and searchGoogleContacts before editing or deleting a contact.
 - For questions about prior conversations, decisions, or work from yesterday or earlier, use searchAgentHistory. Do not guess from a few recent messages.
+- For questions about an uploaded contract or transaction document, use the document tools. Identify the exact document, search its page-aware index first, and use full-PDF review only when indexed evidence is missing or weak. Cite the filename and one-based PDF page number for every contract claim.
+- Never use web search to decide what an uploaded contract says. Contract text outranks the web, general knowledge, and memory.
+- Use web search only for current outside information or an explicit web-search request. Cite the source URLs and separate externally reported facts from Harriett's own inference.
+- If retrieved document or web evidence does not support an answer, say what could not be verified. Never fill gaps from model memory.
 - For to-dos and reminders, use the persistent task tools. Never claim a task or reminder was saved unless the tool confirms it. Resolve reminder times to an exact ISO timestamp with an offset from the current time context. Use the agent's wording in the task title.
 - A reminder is a message delivered at a future time. A due date is when the work should be finished. They may be different, so do not invent one from the other.
 - For appointments and calendar events, use Google Calendar tools and the approval flow. Do not substitute a personal task for a requested calendar event.
@@ -260,6 +266,53 @@ async function fetchProposedActions(db: SupabaseClient, runId: string): Promise<
   })) as ActionRequest[];
 }
 
+async function fetchDocumentCitations(
+  db: SupabaseClient,
+  runId: string
+): Promise<KnowledgeCitation[]> {
+  const { data, error } = await db
+    .from("skill_runs")
+    .select("skill_name, output")
+    .eq("ai_run_id", runId)
+    .in("skill_name", ["search_deal_document", "review_full_deal_document"])
+    .eq("status", "completed")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`document citation load failed: ${error.message}`);
+  const citations: KnowledgeCitation[] = [];
+  for (const row of data ?? []) {
+    const output = row.output as Record<string, unknown> | null;
+    const document = output?.document as Record<string, unknown> | undefined;
+    const evidence = Array.isArray(output?.evidence) ? output.evidence : [];
+    if (!document?.id || !document.filename) continue;
+    for (const item of evidence) {
+      const record = item as Record<string, unknown>;
+      const excerpt = typeof record.quote === "string"
+        ? record.quote
+        : typeof record.text === "string"
+          ? record.text.slice(0, 360)
+          : "";
+      const pageNumber = Number(record.pageNumber);
+      if (!excerpt || !Number.isInteger(pageNumber) || pageNumber < 1) continue;
+      citations.push({
+        sourceType: "document",
+        sourceId: String(document.id),
+        title: String(document.filename),
+        section: null,
+        pageNumber,
+        effectiveDate: null,
+        excerpt,
+      });
+    }
+  }
+  const seen = new Set<string>();
+  return citations.filter((citation) => {
+    const key = `${citation.sourceId}:${citation.pageNumber}:${citation.excerpt}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function runAgentTurn(
   rawInput: AgentTurnInput,
   dependencies: RuntimeDependencies
@@ -338,7 +391,7 @@ export async function runAgentTurn(
       if (error) throw new Error(`retrieval audit failed: ${error.message}`);
     }
 
-    const tools = createRuntimeTools(
+    const runtimeTools = createRuntimeTools(
       {
         db,
         officeId: input.officeId,
@@ -368,11 +421,27 @@ export async function runAgentTurn(
       timeZone: officeTimeZone(agent),
     });
     const forceFirstTool = requiresFirstStepTool(intent.intent);
-    const execute = (model: LanguageModel) => generateText({
+    const execute = (model: LanguageModel, tier: "standard" | "fallback") => generateText({
       model,
       instructions,
       messages,
-      tools,
+      tools: route.sources.includes("web")
+        ? {
+            ...runtimeTools,
+            searchWeb: tier === "fallback"
+              ? openai.tools.webSearch({})
+              : anthropic.tools.webSearch_20250305({
+                  maxUses: 4,
+                  userLocation: {
+                    type: "approximate",
+                    city: "Tuscaloosa",
+                    region: "Alabama",
+                    country: "US",
+                    timezone: officeTimeZone(agent),
+                  },
+                }),
+          }
+        : runtimeTools,
       prepareStep: ({ stepNumber }) => ({
         toolChoice: stepNumber === 0 && forceFirstTool ? "required" : "auto",
       }),
@@ -383,24 +452,51 @@ export async function runAgentTurn(
     let result;
     let modelTier: "standard" | "fallback" = "standard";
     try {
-      result = await execute(modelForTier("standard"));
+      result = await execute(modelForTier("standard"), "standard");
     } catch (primaryError) {
       if (!fallbackConfigured()) throw primaryError;
       modelTier = "fallback";
-      result = await execute(modelForTier("fallback"));
+      result = await execute(modelForTier("fallback"), "fallback");
     }
 
     const response = result.text.trim();
     if (!response) throw new Error("Harriett generated an empty response");
     const proposedActions = await fetchProposedActions(db, runId);
-    const citations: KnowledgeCitation[] = knowledge.map((result) => ({
+    const documentCitations = await fetchDocumentCitations(db, runId);
+    const webCitations: KnowledgeCitation[] = result.sources
+      .filter((source) => source.sourceType === "url")
+      .map((source) => ({
+        sourceType: "web" as const,
+        sourceId: source.id,
+        title: source.title ?? source.url,
+        url: source.url,
+        section: null,
+        pageNumber: null,
+        effectiveDate: null,
+        excerpt: "",
+      }));
+    if (webCitations.length) {
+      const { error } = await db.from("retrieval_events").insert(webCitations.map((citation, index) => ({
+        office_id: input.officeId,
+        agent_id: input.agentId,
+        ai_run_id: runId,
+        source_type: "web",
+        source_id: citation.sourceId,
+        rank: index + 1,
+        score: null,
+        metadata: { title: citation.title, url: citation.url },
+      })));
+      if (error) throw new Error(`web retrieval audit failed: ${error.message}`);
+    }
+    const citations: KnowledgeCitation[] = [...knowledge.map((result) => ({
+      sourceType: "knowledge" as const,
       sourceId: result.sourceId,
       title: result.title,
       section: result.section,
       pageNumber: result.pageNumber,
       effectiveDate: result.effectiveDate,
       excerpt: result.excerpt,
-    }));
+    })), ...documentCitations, ...webCitations];
 
     const { error: completionError } = await db
       .from("ai_runs")

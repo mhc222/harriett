@@ -68,4 +68,25 @@ describe("memory context routing", () => {
     expect(route.sources).toEqual(["tasks"]);
     expect(sourceAuthority("tasks")).toBeGreaterThan(sourceAuthority("memory"));
   });
+
+  it("keeps uploaded contracts separate from outside web research", () => {
+    const documentRoute = routeContext({
+      intent: "document_lookup",
+      needsKnowledge: false,
+      needsMemory: false,
+      dealAddressHint: "123 Main Street",
+      requestedMutation: false,
+    });
+    const webRoute = routeContext({
+      intent: "web_research",
+      needsKnowledge: false,
+      needsMemory: false,
+      dealAddressHint: null,
+      requestedMutation: false,
+    });
+
+    expect(documentRoute.sources).toEqual(["documents"]);
+    expect(webRoute.sources).toEqual(["web"]);
+    expect(sourceAuthority("documents")).toBeGreaterThan(sourceAuthority("web"));
+  });
 });

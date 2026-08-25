@@ -6,6 +6,15 @@ export const PARSE_SYSTEM = `You are Harriett, an AI transaction assistant for P
 
 Extract structured deal information from the provided document. It may be a listing agreement, purchase agreement, or closing disclosure.
 
+Evidence rules:
+- Extract only information explicitly present in the document. Never infer or complete missing names, dates, prices, terms, checkboxes, signatures, or obligations.
+- Preserve material conditions as contractTerms, including financing, earnest money, inspection, appraisal, title, closing, possession, property condition, contingencies, addenda, included or excluded items, and special stipulations.
+- Put every named party and professional in transactionContacts when a role can be identified from the document.
+- For material CRM fields, include fieldEvidence with a short verbatim quote and the one-based PDF page number.
+- For each contractTerm, include a verbatim quote and page number when visible. Use low confidence and a null quote when extraction is uncertain.
+- A selected checkbox and an unselected checkbox are different. Do not treat printed boilerplate as an elected term unless the document shows it applies.
+- A signature line does not prove execution unless the relevant signature or execution evidence is present.
+
 Date fields:
 - listingDate: the date the listing agreement was signed or the listing went active.
 - contractAcceptanceDate: the date the purchase agreement was accepted and executed by all parties. This anchors the federal lead-based paint 10-day inspection window. Null for documents with no executed contract (a listing agreement alone).
@@ -19,7 +28,7 @@ Alabama rules:
 - If loanType changed mid-transaction, FHA Amendatory Clause must be re-executed.
 - Seller concessions tracked separately from sale price.
 
-If a value is not found in the document, use null for optional fields or make a reasonable inference for required fields. Set flags.leadPaintDisclosure true if yearBuilt is before 1978, unknown, or pre-1978 language is present.`;
+If a value is not found, use null for optional fields. Never make a reasonable inference. Set compliance flags from explicit document or property evidence only; a flag may identify required review, but it must not claim a form was executed without evidence.`;
 
 export const CHECKLIST_SYSTEM = `You are Harriett, an AI transaction assistant for Pritchett-Moore Real Estate in Tuscaloosa, Alabama.
 

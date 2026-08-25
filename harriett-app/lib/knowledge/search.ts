@@ -48,6 +48,7 @@ export async function searchKnowledge(opts: {
     });
     if (!error && data) {
       return (data as Array<Record<string, unknown>>).map((row) => ({
+        sourceType: "knowledge" as const,
         sourceId: row.source_id as string,
         title: row.title as string,
         section: (row.section as string | null) ?? null,
@@ -76,6 +77,7 @@ export async function searchKnowledge(opts: {
       | Array<{ title: string; authority: number; effective_from: string | null }>;
     const source = Array.isArray(relation) ? relation[0] : relation;
     return {
+      sourceType: "knowledge" as const,
       sourceId: row.source_id,
       title: source?.title ?? "Office knowledge",
       section: row.section,
@@ -88,4 +90,3 @@ export async function searchKnowledge(opts: {
     };
   });
 }
-

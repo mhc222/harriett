@@ -31,13 +31,14 @@ export function buildCalendarEvents(deal: DealFields, ids: Ids): CalendarEventRo
   }
 
   if (deal.closingDate) {
+    const price = deal.salePrice ?? deal.listPrice;
     events.push({
       ...base,
       title: "Closing",
       date: deal.closingDate,
       type: "closing",
       address: addr,
-      note: `$${(deal.salePrice ?? deal.listPrice).toLocaleString()}`,
+      note: price == null ? "Price not found in document" : `$${price.toLocaleString()}`,
     });
   }
 
@@ -144,7 +145,7 @@ export function checklistPrompt(deal: DealFields): string {
 Property: ${deal.address}, ${deal.city}, ${deal.state} ${deal.zip}
 Listing agent: ${deal.listingAgent}, ${deal.brokerage}
 Sellers: ${deal.sellers.join(" and ")}
-List price: $${deal.listPrice.toLocaleString()}
+List price: ${deal.listPrice == null ? "not found in document" : `$${deal.listPrice.toLocaleString()}`}
 Listing date: ${deal.listingDate ?? "unknown"}
 Contract acceptance: ${deal.contractAcceptanceDate ?? "none yet"}
 Target close: ${deal.closingDate ?? "unknown"}

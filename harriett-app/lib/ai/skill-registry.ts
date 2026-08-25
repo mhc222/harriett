@@ -15,6 +15,7 @@ import { createPropertyTools } from "@/lib/ai/tools/properties";
 import { createGoogleWorkspaceTools } from "@/lib/ai/tools/google-workspace";
 import { createActivityHistoryTools } from "@/lib/ai/tools/activity-history";
 import { createAgentTaskTools } from "@/lib/ai/tools/agent-tasks";
+import { createDealDocumentTools } from "@/lib/ai/tools/deal-documents";
 import { parseGoogleActionPayload, ProposeGoogleActionInputSchema } from "@/lib/google-actions";
 import { decideGoogleAction } from "@/lib/google-action-approval";
 import type { ContextSource } from "@/lib/memory/routing";
@@ -428,6 +429,7 @@ export function createRuntimeTools(
   const googleWorkspaceTools = createGoogleWorkspaceTools(context);
   const activityHistoryTools = createActivityHistoryTools(context);
   const agentTaskTools = createAgentTaskTools(context);
+  const dealDocumentTools = createDealDocumentTools(context);
   return {
     ...(allowed.has("structured") ? { searchDeals: tool({
       description: searchDealsSkill.description,
@@ -468,6 +470,7 @@ export function createRuntimeTools(
     ...(allowed.has("google_workspace") ? googleWorkspaceTools : {}),
     ...(allowed.has("history") ? activityHistoryTools : {}),
     ...(allowed.has("tasks") ? agentTaskTools : {}),
+    ...(allowed.has("documents") ? dealDocumentTools : {}),
   };
 }
 

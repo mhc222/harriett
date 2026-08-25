@@ -5,6 +5,8 @@ export type ContextSource =
   | "memory"
   | "history"
   | "tasks"
+  | "documents"
+  | "web"
   | "knowledge"
   | "microsoft_graph"
   | "google_workspace"
@@ -21,6 +23,8 @@ const INTENT_SOURCES: Record<AgentIntent["intent"], ContextSource[]> = {
   deal_lookup: ["structured"],
   property_research: ["property_provider"],
   knowledge_lookup: ["knowledge"],
+  document_lookup: ["documents"],
+  web_research: ["web"],
   writing: [],
   calendar: ["google_workspace"],
   contact: ["google_workspace"],
@@ -55,6 +59,7 @@ export function sourceAuthority(source: ContextSource): number {
   switch (source) {
     case "structured":
     case "tasks":
+    case "documents":
       return 100;
     case "microsoft_graph":
     case "google_workspace":
@@ -65,6 +70,8 @@ export function sourceAuthority(source: ContextSource): number {
       return 80;
     case "history":
       return 70;
+    case "web":
+      return 60;
     case "memory":
       return 30;
   }

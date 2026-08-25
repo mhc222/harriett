@@ -45,6 +45,9 @@ const gordo: DealFields = {
     fhaLoan: true,
     loanTypeChanged: true,
   },
+  transactionContacts: [],
+  contractTerms: [],
+  fieldEvidence: [],
 };
 
 describe("buildCalendarEvents", () => {

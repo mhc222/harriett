@@ -23,8 +23,10 @@ export const AgentTurnInputSchema = z.object({
 export type AgentTurnInput = z.infer<typeof AgentTurnInputSchema>;
 
 export const KnowledgeCitationSchema = z.object({
-  sourceId: z.string().uuid(),
+  sourceType: z.enum(["knowledge", "document", "web"]).default("knowledge"),
+  sourceId: z.string().min(1),
   title: z.string(),
+  url: z.string().url().nullable().optional(),
   section: z.string().nullable().optional(),
   pageNumber: z.number().int().positive().nullable().optional(),
   effectiveDate: z.string().nullable().optional(),
@@ -68,6 +70,8 @@ export const AgentIntentSchema = z.object({
     "deal_lookup",
     "property_research",
     "knowledge_lookup",
+    "document_lookup",
+    "web_research",
     "writing",
     "calendar",
     "contact",

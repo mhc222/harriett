@@ -11,6 +11,12 @@ import {
   buildChecklistRows,
   checklistPrompt,
 } from "@/lib/deal-events";
+import { indexDealDocument } from "@/lib/document-index";
+import {
+  syncContractContacts,
+  upsertContractProperty,
+  writeContractEvidence,
+} from "@/lib/deal-crm";
 
 // The parse pipeline: document -> DealFields -> deal row -> calendar events
 // -> checklist. Durable task; each step retries as a unit via Trigger.dev.
@@ -45,7 +51,35 @@ export const parseDeal = schemaTask({
       if (dlError || !blob) throw new Error(`download failed: ${dlError?.message}`);
       const pdf = new Uint8Array(await blob.arrayBuffer());
 
+      let documentIndex;
+      try {
+        documentIndex = await indexDealDocument(db, {
+          id: documentId,
+          office_id: ids.officeId,
+          agent_id: ids.agentId,
+          deal_id: doc.deal_id ?? null,
+          storage_path: doc.storage_path,
+        });
+        await writeAudit(db, {
+          officeId: ids.officeId,
+          actor: "harriett",
+          agentId: ids.agentId,
+          action: "document.indexed",
+          payload: { ...documentIndex },
+        });
+      } catch (indexError) {
+        await writeAudit(db, {
+          officeId: ids.officeId,
+          actor: "system",
+          agentId: ids.agentId,
+          action: "document.index_failed",
+          payload: { documentId, error: String(indexError) },
+        });
+      }
+
       const fields = await parseDealDocument(pdf);
+      const crmContext = { db, officeId: ids.officeId, agentId: ids.agentId };
+      const propertyId = await upsertContractProperty(crmContext, fields);
 
       const { data: deal, error: dealError } = await db
         .from("deals")
@@ -64,6 +98,7 @@ export const parseDeal = schemaTask({
           contract_acceptance_date: fields.contractAcceptanceDate,
           closing_date: fields.closingDate,
           parsed_fields: fields,
+          property_id: propertyId,
           source: doc.source === "upload" ? "manual" : doc.source,
         })
         .select("id")
@@ -71,14 +106,33 @@ export const parseDeal = schemaTask({
       if (dealError || !deal) throw new Error(`deal insert failed: ${dealError?.message}`);
       const dealId = deal.id as string;
 
+      const [contactCount, evidenceCount] = await Promise.all([
+        syncContractContacts(crmContext, dealId, fields),
+        writeContractEvidence(crmContext, dealId, documentId, fields),
+      ]);
+
       await db.from("documents").update({ deal_id: dealId, parse_status: "parsed" }).eq("id", documentId);
+      if (documentIndex?.chunkCount) {
+        const { error: linkError } = await db
+          .from("document_chunks")
+          .update({ deal_id: dealId })
+          .eq("document_id", documentId);
+        if (linkError) throw new Error(`document index deal link failed: ${linkError.message}`);
+      }
       await writeAudit(db, {
         officeId: ids.officeId,
         actor: "harriett",
         agentId: ids.agentId,
         dealId,
         action: "deal.created",
-        payload: { address: fields.address, flags: fields.flags },
+        payload: {
+          address: fields.address,
+          propertyId,
+          contactCount,
+          evidenceCount,
+          contractTermCount: fields.contractTerms.length,
+          flags: fields.flags,
+        },
       });
 
       const events = buildCalendarEvents(fields, { ...ids, dealId });
