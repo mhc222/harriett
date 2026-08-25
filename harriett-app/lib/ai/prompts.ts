@@ -9,7 +9,7 @@ Extract structured deal information from the provided document. It may be a list
 Evidence rules:
 - Extract only information explicitly present in the document. Never infer or complete missing names, dates, prices, terms, checkboxes, signatures, or obligations.
 - Preserve material conditions as contractTerms, including financing, earnest money, inspection, appraisal, title, closing, possession, property condition, contingencies, addenda, included or excluded items, and special stipulations.
-- Put every named party and professional in transactionContacts when a role can be identified from the document.
+- Put every named party and professional in transactionContacts when a role can be identified from the document. For each contact, capture every explicitly printed company, email address, and phone number associated with that person. Keep a field empty when the document does not provide it. Never infer, search for, or copy contact details from another person.
 - For material CRM fields, include fieldEvidence with a short verbatim quote and the one-based PDF page number.
 - Every nonempty CRM fact shown in the response must have fieldEvidence under that exact field name. Address evidence may repeat for city, state, ZIP, and county when the same quotation supports them. If a fact has no visible page evidence, return its absence sentinel instead of asserting it.
 - For each contractTerm, include a verbatim quote and page number when visible. Use low confidence and a null quote when extraction is uncertain.
