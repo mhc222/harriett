@@ -151,11 +151,41 @@ export type DealExtraction = z.infer<typeof DealExtractionSchema>;
 
 function blankToNull(value: string): string | null {
   const trimmed = value.trim();
-  return trimmed ? trimmed : null;
+  if (!trimmed || /^(?:n\/?a|none|null|unknown|not found|not provided)$/i.test(trimmed)) return null;
+  return trimmed;
 }
 
 function negativeToNull(value: number): number | null {
   return value < 0 ? null : value;
+}
+
+const MONTHS: Record<string, string> = {
+  january: "01",
+  february: "02",
+  march: "03",
+  april: "04",
+  may: "05",
+  june: "06",
+  july: "07",
+  august: "08",
+  september: "09",
+  october: "10",
+  november: "11",
+  december: "12",
+};
+
+function normalizedDate(value: string): string | null {
+  const present = blankToNull(value);
+  if (!present) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(present)) return present;
+  const numeric = present.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (numeric) {
+    return `${numeric[3]}-${numeric[1].padStart(2, "0")}-${numeric[2].padStart(2, "0")}`;
+  }
+  const written = present.match(/^([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
+  const month = written ? MONTHS[written[1].toLowerCase()] : null;
+  if (written && month) return `${written[3]}-${month}-${written[2].padStart(2, "0")}`;
+  return null;
 }
 
 export function normalizeDealExtraction(input: DealExtraction): DealFields {
@@ -166,9 +196,9 @@ export function normalizeDealExtraction(input: DealExtraction): DealFields {
     salePrice: negativeToNull(input.salePrice),
     buyerAgent: blankToNull(input.buyerAgent),
     buyerBrokerage: blankToNull(input.buyerBrokerage),
-    listingDate: blankToNull(input.listingDate),
-    contractAcceptanceDate: blankToNull(input.contractAcceptanceDate),
-    closingDate: blankToNull(input.closingDate),
+    listingDate: normalizedDate(input.listingDate),
+    contractAcceptanceDate: normalizedDate(input.contractAcceptanceDate),
+    closingDate: normalizedDate(input.closingDate),
     bedBath: blankToNull(input.bedBath),
     sqft: negativeToNull(input.sqft),
     yearBuilt: negativeToNull(input.yearBuilt),
@@ -186,7 +216,7 @@ export function normalizeDealExtraction(input: DealExtraction): DealFields {
     })),
     contractTerms: input.contractTerms.map((term) => ({
       ...term,
-      dueDate: blankToNull(term.dueDate),
+      dueDate: normalizedDate(term.dueDate),
       responsibleParty: blankToNull(term.responsibleParty),
       pageNumber: term.pageNumber === 0 ? null : term.pageNumber,
       quote: blankToNull(term.quote),

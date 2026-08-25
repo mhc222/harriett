@@ -97,7 +97,8 @@ describe("DealFieldsSchema contract mapping", () => {
       listPrice: -1,
       buyerAgent: "",
       buyerBrokerage: "",
-      listingDate: "",
+      listingDate: "November 16, 2025",
+      contractAcceptanceDate: "4/30/2026",
       bedBath: "",
       sqft: -1,
       yearBuilt: -1,
@@ -117,6 +118,29 @@ describe("DealFieldsSchema contract mapping", () => {
     });
     expect(normalized.county).toBeNull();
     expect(normalized.listPrice).toBeNull();
+    expect(normalized.listingDate).toBe("2025-11-16");
+    expect(normalized.contractAcceptanceDate).toBe("2026-04-30");
     expect(normalized.transactionContacts[0].email).toBeNull();
+  });
+
+  it("does not guess an unrecognized date", () => {
+    const normalized = normalizeDealExtraction({
+      ...baseDeal,
+      county: "Tuscaloosa",
+      listPrice: -1,
+      buyerAgent: "",
+      buyerBrokerage: "",
+      listingDate: "sometime after acceptance",
+      bedBath: "",
+      sqft: -1,
+      yearBuilt: -1,
+      mlsNumber: "",
+      parcelId: "",
+      subdivision: "",
+      loanType: "",
+      earnestMoney: -1,
+      sellerConcessions: -1,
+    });
+    expect(normalized.listingDate).toBeNull();
   });
 });
