@@ -34,6 +34,33 @@ export async function loadGoogleConnectionTokens(
   };
 }
 
+export async function loadGoogleConnectionTokensById(
+  db: SupabaseClient,
+  connectionId: string
+): Promise<GoogleTokenBundle> {
+  const parsedConnectionId = z.string().uuid().parse(connectionId);
+  const { data, error } = await db
+    .from("connection_secrets")
+    .select("token_ciphertext, token_iv, token_tag")
+    .eq("connection_id", parsedConnectionId)
+    .single();
+  if (error || !data) {
+    throw new Error(`Google credentials could not be loaded: ${error?.message ?? "not found"}`);
+  }
+  return decryptGoogleTokens({
+    tokenCiphertext: z.string().min(1).parse(data.token_ciphertext),
+    tokenIv: z.string().min(1).parse(data.token_iv),
+    tokenTag: z.string().min(1).parse(data.token_tag),
+  });
+}
+
+export async function getConnectedGoogleAccessTokenById(
+  db: SupabaseClient,
+  connectionId: string
+): Promise<string> {
+  return refreshGoogleAccessToken(await loadGoogleConnectionTokensById(db, connectionId));
+}
+
 export async function saveGoogleConnection(input: {
   db: SupabaseClient;
   identity: GoogleIdentity;

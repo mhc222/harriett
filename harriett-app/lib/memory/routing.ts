@@ -5,6 +5,7 @@ export type ContextSource =
   | "memory"
   | "knowledge"
   | "microsoft_graph"
+  | "google_workspace"
   | "property_provider";
 
 export interface ContextRoute {
@@ -19,9 +20,9 @@ const INTENT_SOURCES: Record<AgentIntent["intent"], ContextSource[]> = {
   property_research: ["property_provider"],
   knowledge_lookup: ["knowledge"],
   writing: [],
-  calendar: ["microsoft_graph"],
+  calendar: ["google_workspace"],
   contact: ["microsoft_graph"],
-  email: ["microsoft_graph"],
+  email: ["google_workspace"],
   checklist: ["structured"],
   memory: ["memory"],
   approval: ["structured"],
@@ -51,6 +52,7 @@ export function sourceAuthority(source: ContextSource): number {
     case "structured":
       return 100;
     case "microsoft_graph":
+    case "google_workspace":
       return 95;
     case "knowledge":
       return 90;

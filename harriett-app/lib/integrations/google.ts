@@ -60,6 +60,9 @@ export const GoogleCalendarEventSchema = z.object({
   summary: z.string().default("Untitled event"),
   description: z.string().optional(),
   location: z.string().optional(),
+  updated: z.string().optional(),
+  organizer: z.object({ email: z.string().email().optional() }).optional(),
+  attendees: z.array(z.object({ email: z.string().email().optional() })).default([]),
   start: z.object({ date: z.string().optional(), dateTime: z.string().optional(), timeZone: z.string().optional() }),
   end: z.object({ date: z.string().optional(), dateTime: z.string().optional(), timeZone: z.string().optional() }),
 });
@@ -118,6 +121,35 @@ export function googleIntegrationConfigured(): boolean {
     && process.env.GOOGLE_OAUTH_REDIRECT_URI?.trim()
     && process.env.CONNECTION_ENCRYPTION_KEY?.trim()
   );
+}
+
+export function googleMonitoringConfigured(): boolean {
+  return googleIntegrationConfigured() && Boolean(
+    process.env.GOOGLE_GMAIL_PUBSUB_TOPIC?.trim()
+    && process.env.GOOGLE_PUBSUB_AUDIENCE?.trim()
+    && process.env.GOOGLE_PUBSUB_SERVICE_ACCOUNT?.trim()
+    && process.env.NEXT_PUBLIC_APP_URL?.trim()
+  );
+}
+
+export async function verifyGooglePubSubAuthorization(
+  authorizationHeader: string | null
+): Promise<void> {
+  const match = authorizationHeader?.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    throw new GoogleIntegrationError("Pub/Sub authorization is missing", "pubsub_unauthorized", 401);
+  }
+  const audience = configuredValue("GOOGLE_PUBSUB_AUDIENCE");
+  const expectedEmail = configuredValue("GOOGLE_PUBSUB_SERVICE_ACCOUNT").toLowerCase();
+  try {
+    const ticket = await new OAuth2Client().verifyIdToken({ idToken: match[1], audience });
+    const payload = ticket.getPayload();
+    if (!payload?.email_verified || payload.email?.toLowerCase() !== expectedEmail) {
+      throw new Error("unexpected service account");
+    }
+  } catch {
+    throw new GoogleIntegrationError("Pub/Sub authorization is invalid", "pubsub_unauthorized", 401);
+  }
 }
 
 function connectionKey(encodedKey = configuredValue("CONNECTION_ENCRYPTION_KEY")): Buffer {
@@ -310,6 +342,90 @@ export async function listGoogleCalendarEvents(input: {
   return z.object({ items: z.array(GoogleCalendarEventSchema).default([]) }).parse(payload).items;
 }
 
+export async function listGoogleCalendarEventChanges(input: {
+  accessToken: string;
+  calendarId?: string;
+  syncToken?: string;
+  pageToken?: string;
+}) {
+  const params = new URLSearchParams({
+    maxResults: "2500",
+    showDeleted: "true",
+    singleEvents: "true",
+    ...(input.syncToken ? { syncToken: input.syncToken } : {}),
+    ...(input.pageToken ? { pageToken: input.pageToken } : {}),
+  });
+  if (!input.syncToken) {
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    params.set("timeMin", start.toISOString());
+  }
+  const calendarId = encodeURIComponent(input.calendarId ?? "primary");
+  const payload = await googleApiRequest(
+    input.accessToken,
+    `${GOOGLE_CALENDAR_URL}/calendars/${calendarId}/events?${params}`
+  );
+  return z.object({
+    items: z.array(GoogleCalendarEventSchema).default([]),
+    nextPageToken: z.string().optional(),
+    nextSyncToken: z.string().optional(),
+  }).parse(payload);
+}
+
+export async function watchGoogleCalendar(input: {
+  accessToken: string;
+  calendarId?: string;
+  channelId: string;
+  webhookUrl: string;
+  verificationToken: string;
+  expiration: number;
+}) {
+  const calendarId = encodeURIComponent(input.calendarId ?? "primary");
+  const body = z.object({
+    id: z.string().uuid(),
+    address: z.string().url().startsWith("https://"),
+    token: z.string().min(32).max(256),
+    expiration: z.number().int().positive(),
+  }).parse({
+    id: input.channelId,
+    address: input.webhookUrl,
+    token: input.verificationToken,
+    expiration: input.expiration,
+  });
+  const payload = await googleApiRequest(
+    input.accessToken,
+    `${GOOGLE_CALENDAR_URL}/calendars/${calendarId}/events/watch`,
+    {
+      method: "POST",
+      body: JSON.stringify({ ...body, type: "web_hook" }),
+    }
+  );
+  return z.object({
+    id: z.string().min(1),
+    resourceId: z.string().min(1),
+    resourceUri: z.string().optional(),
+    expiration: z.string().optional(),
+  }).parse(payload);
+}
+
+export async function stopGoogleCalendarChannel(input: {
+  accessToken: string;
+  channelId: string;
+  resourceId: string;
+}) {
+  await googleApiRequest(
+    input.accessToken,
+    `${GOOGLE_CALENDAR_URL}/channels/stop`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        id: z.string().min(1).parse(input.channelId),
+        resourceId: z.string().min(1).parse(input.resourceId),
+      }),
+    }
+  );
+}
+
 export async function createGoogleCalendarEvent(input: {
   accessToken: string;
   calendarId?: string;
@@ -420,6 +536,88 @@ export async function getGoogleMessageMetadata(input: {
     payload: z.object({
       headers: z.array(z.object({ name: z.string(), value: z.string() })).default([]),
     }).optional(),
+  }).parse(payload);
+}
+
+const GmailPartSchema: z.ZodType<{
+  mimeType?: string;
+  filename?: string;
+  body?: { data?: string; attachmentId?: string; size?: number };
+  parts?: Array<z.infer<typeof GmailPartSchema>>;
+}> = z.lazy(() => z.object({
+  mimeType: z.string().optional(),
+  filename: z.string().optional(),
+  body: z.object({
+    data: z.string().optional(),
+    attachmentId: z.string().optional(),
+    size: z.number().optional(),
+  }).optional(),
+  parts: z.array(GmailPartSchema).optional(),
+}));
+
+function gmailTextParts(part: z.infer<typeof GmailPartSchema>, output: string[]): void {
+  if (part.mimeType === "text/plain" && part.body?.data) {
+    output.push(Buffer.from(part.body.data, "base64url").toString("utf8"));
+  }
+  for (const child of part.parts ?? []) gmailTextParts(child, output);
+}
+
+export async function getGoogleMessageContent(input: {
+  accessToken: string;
+  messageId: string;
+}) {
+  const messageId = encodeURIComponent(z.string().min(1).parse(input.messageId));
+  const payload = await googleApiRequest(
+    input.accessToken,
+    `${GOOGLE_GMAIL_URL}/users/me/messages/${messageId}?format=full`
+  );
+  const parsed = z.object({
+    id: z.string().min(1),
+    threadId: z.string().optional(),
+    labelIds: z.array(z.string()).default([]),
+    snippet: z.string().default(""),
+    internalDate: z.string().optional(),
+    payload: GmailPartSchema.and(z.object({
+      headers: z.array(z.object({ name: z.string(), value: z.string() })).default([]),
+    })),
+  }).parse(payload);
+  const textParts: string[] = [];
+  gmailTextParts(parsed.payload, textParts);
+  return {
+    id: parsed.id,
+    threadId: parsed.threadId,
+    labelIds: parsed.labelIds,
+    snippet: parsed.snippet,
+    internalDate: parsed.internalDate,
+    headers: parsed.payload.headers,
+    text: textParts.join("\n\n").trim().slice(0, 50_000),
+  };
+}
+
+export async function listGoogleMailboxHistory(input: {
+  accessToken: string;
+  startHistoryId: string;
+  pageToken?: string;
+}) {
+  const params = new URLSearchParams({
+    startHistoryId: z.string().regex(/^\d+$/).parse(input.startHistoryId),
+    historyTypes: "messageAdded",
+    labelId: "INBOX",
+    maxResults: "500",
+    ...(input.pageToken ? { pageToken: input.pageToken } : {}),
+  });
+  const payload = await googleApiRequest(
+    input.accessToken,
+    `${GOOGLE_GMAIL_URL}/users/me/history?${params}`
+  );
+  const messageRef = z.object({ id: z.string().min(1), threadId: z.string().optional() });
+  return z.object({
+    history: z.array(z.object({
+      id: z.string().min(1),
+      messagesAdded: z.array(z.object({ message: messageRef })).default([]),
+    })).default([]),
+    historyId: z.string().min(1),
+    nextPageToken: z.string().optional(),
   }).parse(payload);
 }
 

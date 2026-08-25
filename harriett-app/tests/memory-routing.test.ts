@@ -17,7 +17,7 @@ describe("memory context routing", () => {
     expect(sourceAuthority("structured")).toBeGreaterThan(sourceAuthority("memory"));
   });
 
-  it("routes Outlook questions to live Microsoft Graph data", () => {
+  it("routes pilot email questions to the connected Google workspace", () => {
     const route = routeContext({
       intent: "email",
       needsKnowledge: false,
@@ -26,7 +26,7 @@ describe("memory context routing", () => {
       requestedMutation: false,
     });
 
-    expect(route.sources).toEqual(["microsoft_graph"]);
+    expect(route.sources).toEqual(["google_workspace"]);
   });
 
   it("loads personal memory for writing without treating it as factual proof", () => {

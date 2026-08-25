@@ -25,7 +25,16 @@ const googleMessages: Record<string, string> = {
   not_configured: "Google OAuth still needs its client credentials before agents can connect.",
   callback_failed: "Google could not be connected. Please try again.",
   missing_refresh_token: "Google did not provide long-lived access. Remove Harriett from your Google Account connections, then reconnect.",
+  monitoring_queued: "Google monitoring setup is running. New Gmail and Calendar changes will arrive by push notification.",
+  monitoring_not_configured: "Google push monitoring still needs its Pub/Sub settings.",
+  not_connected: "Connect Google before starting monitoring.",
 };
+
+const MonitoringStatusSchema = z.object({
+  resource_type: z.string(),
+  status: z.string(),
+  expires_at: z.string().nullable(),
+});
 
 const ConnectionStatusSchema = z.object({
   id: z.string().uuid(),
@@ -59,6 +68,15 @@ export default async function ConnectionsPage({
   const googleCapabilities = (googleConnection?.capabilities ?? {}) as Record<string, unknown>;
   const googleConnected = googleConnection?.status === "connected";
   const configured = googleIntegrationConfigured();
+  const { data: rawMonitoring } = googleConnection
+    ? await db
+      .from("provider_subscriptions")
+      .select("resource_type, status, expires_at")
+      .eq("connection_id", googleConnection.id)
+    : { data: [] };
+  const parsedMonitoring = z.array(MonitoringStatusSchema).safeParse(rawMonitoring ?? []);
+  const monitoring = parsedMonitoring.success ? parsedMonitoring.data : [];
+  const monitoringActive = monitoring.some((item) => item.status === "active");
   const otherConnections = connections?.filter((connection) => connection.provider !== "google") ?? [];
   return (
     <div className="page-stack">
@@ -82,9 +100,16 @@ export default async function ConnectionsPage({
                 {(googleConnection?.status ?? "disconnected").replaceAll("_", " ")}
               </span>
               {googleConnected ? (
-                <form action="/api/integrations/google/disconnect" method="post">
-                  <button type="submit" className="secondary-button"><Unplug size={16} /> Disconnect</button>
-                </form>
+                <>
+                  {!monitoringActive && (
+                    <form action="/api/integrations/google/monitor" method="post">
+                      <button type="submit" className="primary-button"><PlugZap size={16} /> Start monitoring</button>
+                    </form>
+                  )}
+                  <form action="/api/integrations/google/disconnect" method="post">
+                    <button type="submit" className="secondary-button"><Unplug size={16} /> Disconnect</button>
+                  </form>
+                </>
               ) : configured ? (
                 <a href="/api/integrations/google/connect" className="primary-button"><Link2 size={16} /> Connect Google</a>
               ) : (

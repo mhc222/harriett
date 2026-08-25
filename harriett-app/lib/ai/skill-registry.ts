@@ -11,6 +11,7 @@ import { requiredApproval } from "@/lib/ai/policy";
 import { searchKnowledge } from "@/lib/knowledge";
 import { SupabaseMemoryProvider } from "@/lib/memory";
 import { createPropertyTools } from "@/lib/ai/tools/properties";
+import { createGoogleWorkspaceTools } from "@/lib/ai/tools/google-workspace";
 import type { ContextSource } from "@/lib/memory/routing";
 
 const JsonObjectSchema = z.record(z.string(), z.unknown());
@@ -337,6 +338,7 @@ export function createRuntimeTools(
     actor: "harriett",
     aiRunId: context.aiRunId,
   });
+  const googleWorkspaceTools = createGoogleWorkspaceTools(context);
   return {
     ...(allowed.has("structured") ? { searchDeals: tool({
       description: searchDealsSkill.description,
@@ -364,6 +366,7 @@ export function createRuntimeTools(
       execute: (input) => runSkill(proposeActionSkill, input, context),
     }) } : {}),
     ...(allowed.has("property_provider") ? propertyTools : {}),
+    ...(allowed.has("google_workspace") ? googleWorkspaceTools : {}),
   };
 }
 

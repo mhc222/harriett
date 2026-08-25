@@ -5,6 +5,7 @@ import {
   CheckCheck,
   CircleAlert,
   Clock3,
+  Mail,
   Search,
 } from "lucide-react";
 import { authenticatedContext } from "@/lib/auth-context";
@@ -22,6 +23,10 @@ function dateLabel(value: string): string {
   );
 }
 
+function googleEventDate(event: { starts_at: string | null; all_day_start: string | null }): string {
+  return event.all_day_start ?? event.starts_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+}
+
 function todayHeading(role: string): string {
   if (role === "coordinator") return "Keep the office moving";
   if (role === "broker") return "What needs your attention";
@@ -33,13 +38,16 @@ export default async function TodayPage() {
   const auth = await authenticatedContext(db);
   if (!auth) return null;
   const today = new Date().toISOString().slice(0, 10);
+  const upcomingDate = new Date(`${today}T00:00:00.000Z`);
+  upcomingDate.setUTCDate(upcomingDate.getUTCDate() + 14);
+  const upcomingLimit = upcomingDate.toISOString();
   const headingDate = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   }).format(new Date());
 
-  const [agentResult, workResult, approvalResult, eventResult, researchResult, dealResult] =
+  const [agentResult, workResult, approvalResult, eventResult, googleEventResult, mailResult, researchResult, dealResult] =
     await Promise.all([
       db.from("agents").select("name").eq("id", auth.agentId).single(),
       db
@@ -61,6 +69,20 @@ export default async function TodayPage() {
         .order("date")
         .limit(5),
       db
+        .from("google_calendar_event_index")
+        .select("id, summary, location, starts_at, all_day_start, source_url")
+        .neq("status", "cancelled")
+        .or(`starts_at.gte.${new Date(`${today}T00:00:00.000Z`).toISOString()},all_day_start.gte.${today}`)
+        .or(`starts_at.lte.${upcomingLimit},all_day_start.lte.${upcomingLimit.slice(0, 10)}`)
+        .order("starts_at", { ascending: true, nullsFirst: false })
+        .limit(5),
+      db
+        .from("google_mail_index")
+        .select("id, sender, subject, snippet, priority, received_at, source_url")
+        .eq("needs_attention", true)
+        .order("received_at", { ascending: false })
+        .limit(5),
+      db
         .from("property_research_runs")
         .select("id, summary, provider, created_at, properties(formatted_address, city, state)")
         .order("created_at", { ascending: false })
@@ -75,9 +97,11 @@ export default async function TodayPage() {
   const work = workResult.data ?? [];
   const approvals = approvalResult.data ?? [];
   const events = eventResult.data ?? [];
+  const googleEvents = googleEventResult.data ?? [];
+  const attentionMail = mailResult.data ?? [];
   const research = researchResult.data ?? [];
   const openDeals = dealResult.data?.length ?? 0;
-  const attentionCount = work.length + approvals.length;
+  const attentionCount = work.length + approvals.length + attentionMail.length;
 
   return (
     <div className="page-stack">
@@ -114,6 +138,16 @@ export default async function TodayPage() {
                 <ArrowRight size={17} className="row-arrow" />
               </Link>
             ))}
+            {attentionMail.map((message) => (
+              <a href={message.source_url ?? "#"} target="_blank" rel="noreferrer" key={message.id} className="work-row">
+                <span className="work-icon work-icon-alert"><Mail size={18} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="work-title">{message.subject || "Email needs attention"}</span>
+                  <span className="work-meta">{message.sender || message.snippet || "Open in Gmail"}</span>
+                </span>
+                <span className={`priority-label priority-${message.priority}`}>{message.priority}</span>
+              </a>
+            ))}
             {work.map((item) => (
               <div key={item.id} className="work-row">
                 <span className="work-icon"><Clock3 size={18} /></span>
@@ -144,8 +178,21 @@ export default async function TodayPage() {
               <h2 id="coming-up-heading">Coming up</h2>
             </div>
           </div>
-          {events.length ? (
+          {events.length || googleEvents.length ? (
             <div className="compact-list">
+              {googleEvents.map((event) => {
+                const eventDate = googleEventDate(event);
+                const content = <>
+                  <span className="date-tile"><strong>{dateLabel(eventDate).split(" ")[1]}</strong>{dateLabel(eventDate).split(" ")[0]}</span>
+                  <span className="min-w-0">
+                    <span className="work-title">{event.summary || "Calendar event"}</span>
+                    <span className="work-meta truncate">{event.location || (event.starts_at ? new Date(event.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "All day")}</span>
+                  </span>
+                </>;
+                return event.source_url
+                  ? <a href={event.source_url} target="_blank" rel="noreferrer" className="compact-row compact-link" key={`google-${event.id}`}>{content}</a>
+                  : <div className="compact-row" key={`google-${event.id}`}>{content}</div>;
+              })}
               {events.map((event) => (
                 <div className="compact-row" key={event.id}>
                   <span className="date-tile"><strong>{dateLabel(event.date).split(" ")[1]}</strong>{dateLabel(event.date).split(" ")[0]}</span>

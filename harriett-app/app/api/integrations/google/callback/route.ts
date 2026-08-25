@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
 import { authenticatedContext } from "@/lib/auth-context";
@@ -12,7 +13,9 @@ import {
   GOOGLE_OAUTH_STATE_COOKIE,
   getGoogleIdentity,
   GoogleIntegrationError,
+  googleMonitoringConfigured,
 } from "@/lib/integrations/google";
+import type { configureGoogleMonitoring } from "@/trigger/google-monitoring";
 
 const CallbackSchema = z.object({
   code: z.string().min(1),
@@ -71,6 +74,15 @@ export async function GET(request: NextRequest) {
     );
     const identity = await getGoogleIdentity(tokens.accessToken);
     const connectionId = await saveGoogleConnection({ db, identity, tokens });
+    let monitoringRunId: string | null = null;
+    if (googleMonitoringConfigured()) {
+      const run = await tasks.trigger<typeof configureGoogleMonitoring>(
+        "configure-google-monitoring",
+        { connectionId },
+        { idempotencyKey: ["google-connect", connectionId, Date.now().toString()], idempotencyKeyTTL: "1h" }
+      );
+      monitoringRunId = run.id;
+    }
 
     await writeAudit(db, {
       officeId: auth.officeId,
@@ -83,6 +95,7 @@ export async function GET(request: NextRequest) {
         accountEmail: identity.email,
         scopes: tokens.scopes,
         mailRead: true,
+        monitoringRunId,
       },
     });
     return redirect(request, "connected");

@@ -27,6 +27,9 @@ export default defineConfig({
           "MEMORY_MODE",
           "MEM0_TELEMETRY",
           "MEM0_LLM_MODEL",
+          "GOOGLE_OAUTH_CLIENT_ID",
+          "GOOGLE_OAUTH_REDIRECT_URI",
+          "GOOGLE_GMAIL_PUBSUB_TOPIC",
         ]
           .filter((name) => process.env[name])
           .map((name) => ({ name, value: process.env[name]! })),
@@ -40,6 +43,8 @@ export default defineConfig({
           "TWILIO_AUTH_TOKEN",
           "RENTCAST_API_KEY",
           "BRIGHT_DATA_API_KEY",
+          "GOOGLE_OAUTH_CLIENT_SECRET",
+          "CONNECTION_ENCRYPTION_KEY",
         ]
           .filter((name) => process.env[name])
           .map((name) => ({ name, value: process.env[name]!, isSecret: true })),
