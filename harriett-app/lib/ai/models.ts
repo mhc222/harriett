@@ -28,5 +28,4 @@ export function fallbackConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 
-export const PROMPT_VERSION = "agent-runtime-1";
-
+export const PROMPT_VERSION = "agent-runtime-2";
