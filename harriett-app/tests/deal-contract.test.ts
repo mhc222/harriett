@@ -37,10 +37,13 @@ const baseDeal = {
     fhaLoan: false,
     loanTypeChanged: false,
   },
+  transactionContacts: [],
+  contractTerms: [],
+  fieldEvidence: [],
 };
 
 describe("DealFieldsSchema contract mapping", () => {
-  it("accepts a missing list price and defaults new CRM collections", () => {
+  it("accepts a missing list price and explicit empty CRM collections", () => {
     const parsed = DealFieldsSchema.parse(baseDeal);
     expect(parsed.listPrice).toBeNull();
     expect(parsed.transactionContacts).toEqual([]);

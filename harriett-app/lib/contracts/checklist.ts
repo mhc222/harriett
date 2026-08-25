@@ -16,9 +16,9 @@ export const ChecklistOutputSchema = z.object({
       category: z.enum(["pre-listing", "listing-active", "under-contract", "closing"]),
       title: z.string().min(1),
       detail: z.string().nullable(),
-      dueDateAnchor: ChecklistDueDateAnchorSchema.nullable().optional(),
-      dueDateOffsetDays: z.number().int().nullable().optional(),
-      dueDateOffsetBusinessDays: z.number().int().nullable().optional(),
+      dueDateAnchor: ChecklistDueDateAnchorSchema.nullable(),
+      dueDateOffsetDays: z.number().int().nullable(),
+      dueDateOffsetBusinessDays: z.number().int().nullable(),
       daysFromListing: z.number().int().nullable(),
       required: z.boolean(),
     })

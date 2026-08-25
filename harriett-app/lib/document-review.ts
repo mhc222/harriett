@@ -67,6 +67,7 @@ For every recognized form:
 - Use unreadable when image quality prevents a reliable review.
 - Use needs_review when the form is present but handwriting, selections, signatures, amendments, or internal consistency cannot be resolved confidently.
 - Include short verbatim evidence with one-based PDF page numbers.
+- Include every response field. Use an empty array when there are no documents, notes, missing items, or evidence.
 - Printed signature lines do not prove a signature. Printed boilerplate does not prove an optional election applies.
 - Never infer facts from common practice, filenames, templates, or another transaction.
 - An appears_complete result is an AI document review, not a legal conclusion.`;

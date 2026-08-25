@@ -83,9 +83,9 @@ export const DealFieldsSchema = z.object({
     fhaLoan: z.boolean(),
     loanTypeChanged: z.boolean(),
   }),
-  transactionContacts: z.array(TransactionContactSchema).default([]),
-  contractTerms: z.array(ContractTermSchema).default([]),
-  fieldEvidence: z.array(DealFieldEvidenceSchema).default([]),
+  transactionContacts: z.array(TransactionContactSchema),
+  contractTerms: z.array(ContractTermSchema),
+  fieldEvidence: z.array(DealFieldEvidenceSchema),
 });
 
 export type DealFields = z.infer<typeof DealFieldsSchema>;

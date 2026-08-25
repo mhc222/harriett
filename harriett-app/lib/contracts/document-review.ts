@@ -12,14 +12,14 @@ export const DocumentRuleReviewSchema = z.object({
   ruleKey: z.enum(documentRuleKeys),
   status: z.enum(["appears_complete", "incomplete", "unreadable", "needs_review"]),
   pages: z.array(z.number().int().positive()).min(1),
-  missingOrUnclearItems: z.array(z.string().min(1)).default([]),
-  evidence: z.array(DocumentReviewEvidenceSchema).default([]),
+  missingOrUnclearItems: z.array(z.string().min(1)),
+  evidence: z.array(DocumentReviewEvidenceSchema),
   confidence: z.number().min(0).max(1),
 });
 
 export const DocumentPacketReviewSchema = z.object({
-  documents: z.array(DocumentRuleReviewSchema).default([]),
-  notes: z.array(z.string().min(1)).default([]),
+  documents: z.array(DocumentRuleReviewSchema),
+  notes: z.array(z.string().min(1)),
 });
 
 export type DocumentPacketReview = z.infer<typeof DocumentPacketReviewSchema>;

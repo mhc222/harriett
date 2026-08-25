@@ -24,8 +24,11 @@ describe("document packet review contract", () => {
         ruleKey: "made_up_form",
         status: "appears_complete",
         pages: [1],
+        missingOrUnclearItems: [],
+        evidence: [],
         confidence: 1,
       }],
+      notes: [],
     });
     expect(parsed.success).toBe(false);
   });
@@ -37,15 +40,20 @@ describe("document packet review contract", () => {
           ruleKey: "federal_lead_based_paint_disclosure",
           status: "appears_complete",
           pages: [9],
+          missingOrUnclearItems: [],
+          evidence: [],
           confidence: 0.98,
         },
         {
           ruleKey: "al_general_financed_purchase_agreement",
           status: "needs_review",
           pages: [1, 2, 3, 4, 5, 6, 7, 8],
+          missingOrUnclearItems: [],
+          evidence: [],
           confidence: 0.93,
         },
       ],
+      notes: [],
     });
     expect(classifyDocumentPacket(review)).toMatchObject({
       ruleKey: "al_general_financed_purchase_agreement",
@@ -59,8 +67,11 @@ describe("document packet review contract", () => {
         ruleKey: "al_general_financed_purchase_agreement",
         status: "unreadable",
         pages: [1],
+        missingOrUnclearItems: [],
+        evidence: [],
         confidence: 0.41,
       }],
+      notes: [],
     });
     expect(classifyDocumentPacket(review)).toBeNull();
   });

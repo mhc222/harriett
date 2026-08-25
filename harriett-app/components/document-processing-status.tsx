@@ -8,6 +8,28 @@ export function DocumentProcessingStatus({ documentId, initialStatus }: { docume
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+
+  const retry = async () => {
+    setRetrying(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/documents/${documentId}/retry`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) {
+        if (payload.dealId) {
+          router.replace(`/deals/${payload.dealId}`);
+          return;
+        }
+        throw new Error(payload.error ?? "Could not restart the review");
+      }
+      setStatus("pending");
+    } catch (retryError) {
+      setError(retryError instanceof Error ? retryError.message : "Could not restart the review");
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (status === "failed") return;
@@ -39,7 +61,13 @@ export function DocumentProcessingStatus({ documentId, initialStatus }: { docume
     return (
       <div className="processing-state processing-error">
         <AlertTriangle size={24} aria-hidden="true" />
-        <div><h2>The review needs attention</h2><p>{error ?? "Harriett could not finish reading this PDF. The original document is still saved."}</p></div>
+        <div>
+          <h2>The review needs attention</h2>
+          <p>{error ?? "Harriett could not finish reading this PDF. The original document is still saved."}</p>
+          <button type="button" className="secondary-button mt-3" onClick={retry} disabled={retrying}>
+            {retrying ? "Restarting..." : "Try the review again"}
+          </button>
+        </div>
       </div>
     );
   }

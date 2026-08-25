@@ -37,6 +37,8 @@ export const parseDeal = schemaTask({
 
     const ids = { officeId: doc.office_id as string, agentId: doc.agent_id as string };
 
+    await db.from("documents").update({ parse_status: "pending" }).eq("id", documentId);
+
     await writeAudit(db, {
       officeId: ids.officeId,
       actor: "harriett",
