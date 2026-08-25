@@ -29,12 +29,12 @@ Most under-contract timing starts at `contract_acceptance_date`, not listing dat
 | Hold earnest money pending confirmation | Offer received or contract received | Immediate | Any sale with earnest money |
 | Final contract into Instanet | Contract accepted | Same day | All sales |
 | Excel Master Sales update | Contract accepted | Next Monday report | Current PM office workflow |
-| Loan pre-approval letter check | Contract accepted | Within 5 days unless contract says otherwise | Financed buyer |
-| Earnest money deposit confirmation with Chanda | Contract accepted and agent approves | Within 5 days unless contract says otherwise | PM-held earnest money |
+| Loan pre-approval letter check | Contract accepted | Use the signed contract and lender evidence; flag an unverified date | Financed buyer |
+| Earnest money deposit confirmation | Contract accepted and agent approves | Use the signed contract and current trust-fund rule; flag an unverified date | PM-held earnest money |
 | Lead-based paint inspection window | Contract accepted | 10 calendar days unless waived in writing | Pre-1978 property or lead-paint language present |
-| Inspection contingency reminder | Contract accepted | Contract controls, fallback reminder at 14 to 21 days | Buyer inspection contingency |
-| Financing contingency reminder | Contract accepted | Contract controls, fallback reminder at 14 to 21 days | Financed transaction |
-| Appraisal and loan commitment reminder | Contract accepted | Typical 21 to 30 days | Financed transaction |
+| Inspection contingency reminder | Contract accepted | No fallback deadline; use the signed contract or require human review | Buyer inspection contingency |
+| Financing contingency reminder | Contract accepted | No fallback deadline; use the signed contract or require human review | Financed transaction |
+| Appraisal and loan commitment reminder | Contract accepted | No fallback deadline; use the signed contract and lender evidence or require human review | Financed transaction |
 
 ### Closing Anchor
 
@@ -70,7 +70,7 @@ Most under-contract timing starts at `contract_acceptance_date`, not listing dat
 | Rule | Trigger | Due timing | Applies when |
 | --- | --- | --- | --- |
 | FHA Amendatory Clause and Real Estate Certification | FHA loan detected | Before closing, preferably at contract execution | FHA transaction |
-| FHA clause re-execution | Loan type changes to FHA | Same day or immediately after loan-type change | Mid-transaction loan change |
+| FHA clause review after financing change | Loan type changes to FHA | Immediate lender and broker review | Mid-transaction loan change |
 | RECAD disclosure check | Client relationship or agency discussion | Before substantive agency discussion | Every Alabama client relationship |
 | Written brokerage agreement check | Buyer submits offer or seller lists property | Before offer submission or listing | Alabama Act 2025-59 workflow |
 | Buyer-beware inspection posture | Inspection-related drafting | Always | Alabama residential transaction |
@@ -81,7 +81,8 @@ Most under-contract timing starts at `contract_acceptance_date`, not listing dat
 The demo computed some useful-looking dates the wrong way:
 
 - `deal-events.ts` used `closing_date - 10 days` for the lead paint window. The correct anchor should be `contract_acceptance_date` unless the signed documents set a different inspection period.
-- `deal-events.ts` also used `closing_date - 10 days` as a generic inspection deadline. That should not be treated as an Alabama rule. Contract terms control, with a fallback reminder only when no deadline is extracted.
+- `deal-events.ts` also used `closing_date - 10 days` as a generic inspection deadline. That should not be treated as an Alabama rule. Contract terms control. If the date cannot be verified from the signed contract, Harriett must flag it for human review instead of inventing a fallback.
+- The demo's 5-day earnest-money and pre-approval reminders, 14-to-21-day inspection ranges, and 21-to-30-day appraisal ranges are examples, not verified universal deadlines. They must not be used as transaction obligations without supporting contract or policy evidence.
 - `generateAndSaveChecklist()` used `daysFromListing` and sometimes substituted today for listing date so the demo UI would show future dates. That was useful for the demo, but Phase 2 needs explicit anchors.
 - The old memory routes seeded law and timing into one hardcoded user's Mem0 profile. These are brokerage and compliance knowledge, not Jerrod's stylistic memory.
 - `JSON.parse(raw)` from model output should not come forward. Phase 2 should use zod-validated structured outputs through the AI SDK.

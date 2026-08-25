@@ -27,6 +27,52 @@
       "notes": "Internal extraction of useful Pritchett-Moore transaction timing and coordinator workflow rules from the Phase 1 demo. Use for office workflow behavior. Official law-backed rules still require citation to NAR, AREC, Alabama Code, Alabama Administrative Code, or federal sources."
     },
     {
+      "id": "pm-transaction-packet-map",
+      "title": "Pritchett-Moore Transaction Packet Knowledge Map",
+      "kind": "procedure",
+      "authority": 72,
+      "status": "published",
+      "local_path": "knowledge/pm-transaction-packet-map.md",
+      "content_type": "text/markdown",
+      "effective_from": "2026-08-25",
+      "publisher": "Pritchett-Moore Real Estate and PD Labs",
+      "jurisdiction": "Alabama",
+      "metadata": {
+        "review_on_change": true,
+        "privacy_safe": true,
+        "derived_from_sample_packets": true
+      },
+      "notes": "Privacy-safe document taxonomy, applicability logic, extraction fields, execution checks, reconciliation rules, and workflow observations derived from sample transaction packets. It contains no sample-client facts. Signed transaction documents and official legal sources outrank this map."
+    },
+    {
+      "id": "epa-lead-disclosure-rule",
+      "title": "EPA Lead-Based Paint Disclosure Rule",
+      "kind": "regulation",
+      "authority": 99,
+      "status": "published",
+      "source_url": "https://www.epa.gov/lead/lead-based-paint-disclosure-rule-section-1018-title-x",
+      "publisher": "United States Environmental Protection Agency",
+      "jurisdiction": "United States",
+      "metadata": {
+        "review_on_change": true
+      },
+      "notes": "Federal disclosure, pamphlet, records, warning statement, and inspection-opportunity requirements for most pre-1978 housing, subject to exemptions."
+    },
+    {
+      "id": "cfpb-closing-disclosure",
+      "title": "CFPB Closing Disclosure Guidance",
+      "kind": "regulation",
+      "authority": 99,
+      "status": "published",
+      "source_url": "https://www.consumerfinance.gov/ask-cfpb/what-is-a-closing-disclosure-en-1983/",
+      "publisher": "Consumer Financial Protection Bureau",
+      "jurisdiction": "United States",
+      "metadata": {
+        "review_on_change": true
+      },
+      "notes": "Official consumer guidance for the Closing Disclosure and the general three-business-day review period."
+    },
+    {
       "id": "arec-statutory-changes-2025-2026",
       "title": "AREC Statutory Changes and 2025-2026 Rule Updates",
       "kind": "regulation",
@@ -88,7 +134,7 @@
       "kind": "regulation",
       "authority": 98,
       "status": "review",
-      "source_url": "https://admincode.legislature.state.al.us/administrative-code/790-X-3-.13",
+      "source_url": "https://arec.alabama.gov/pages/laws/ViewLaw.aspx?AspxAutoDetectCookieSupport=1&LawSectionID=181",
       "effective_from": "2026-02-14",
       "publisher": "Alabama Legislative Services Agency",
       "jurisdiction": "Alabama",
@@ -124,7 +170,7 @@
       "kind": "regulation",
       "authority": 98,
       "status": "review",
-      "source_url": "https://admincode.legislature.state.al.us/administrative-code/790-X-3-.04",
+      "source_url": "https://arec.alabama.gov/pages/laws/ViewLaw.aspx?AspxAutoDetectCookieSupport=1&LawSectionID=93",
       "effective_from": "2025-02-14",
       "publisher": "Alabama Legislative Services Agency",
       "jurisdiction": "Alabama",

@@ -89,4 +89,18 @@ describe("memory context routing", () => {
     expect(webRoute.sources).toEqual(["web"]);
     expect(sourceAuthority("documents")).toBeGreaterThan(sourceAuthority("web"));
   });
+
+  it("combines transaction documents with published rules for completeness questions", () => {
+    const route = routeContext({
+      intent: "document_lookup",
+      needsKnowledge: true,
+      needsMemory: false,
+      dealAddressHint: "123 Main Street",
+      requestedMutation: false,
+    });
+
+    expect(route.sources).toEqual(["documents", "knowledge"]);
+    expect(route.sources).not.toContain("memory");
+    expect(route.sources).not.toContain("web");
+  });
 });
