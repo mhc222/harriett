@@ -12,6 +12,7 @@ import {
   checklistPrompt,
 } from "@/lib/deal-events";
 import { indexDealDocument } from "@/lib/document-index";
+import { reviewTransactionDocument, saveDocumentReview } from "@/lib/document-review";
 import {
   syncContractContacts,
   upsertContractProperty,
@@ -134,6 +135,43 @@ export const parseDeal = schemaTask({
           flags: fields.flags,
         },
       });
+
+      try {
+        const documentReview = await reviewTransactionDocument(pdf);
+        const reviewCount = await saveDocumentReview(db, {
+          officeId: ids.officeId,
+          agentId: ids.agentId,
+          dealId,
+          documentId,
+          review: documentReview,
+        });
+        await writeAudit(db, {
+          officeId: ids.officeId,
+          actor: "harriett",
+          agentId: ids.agentId,
+          dealId,
+          action: "document.reviewed",
+          payload: {
+            documentId,
+            reviewCount,
+            statuses: documentReview.documents.map((item) => ({
+              ruleKey: item.ruleKey,
+              status: item.status,
+              confidence: item.confidence,
+            })),
+            notes: documentReview.notes,
+          },
+        });
+      } catch (reviewError) {
+        await writeAudit(db, {
+          officeId: ids.officeId,
+          actor: "system",
+          agentId: ids.agentId,
+          dealId,
+          action: "document.review_failed",
+          payload: { documentId, error: String(reviewError) },
+        });
+      }
 
       const events = buildCalendarEvents(fields, { ...ids, dealId });
       if (events.length > 0) {
