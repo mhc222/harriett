@@ -97,7 +97,7 @@ function renderContinuityContext(messages: ContinuityMessage[]): string {
   }).join("\n");
 }
 
-function renderPersonalContext(memories: MemorySearchResult[]): string {
+function renderMemoryContext(memories: MemorySearchResult[]): string {
   if (!memories.length) return "No relevant personal memory was retrieved.";
   return memories
     .map((memory) => `- [${memory.category}] ${memory.content}`)
@@ -175,6 +175,7 @@ Evidence rules:
 - For questions about prior conversations, decisions, or work from yesterday or earlier, use searchAgentHistory. Do not guess from a few recent messages.
 - For questions about an uploaded contract or transaction document, use the document tools. Identify the exact document, search its page-aware index first, and use full-PDF review only when indexed evidence is missing or weak. Cite the filename and one-based PDF page number for every contract claim.
 - For packet-completeness questions, combine uploaded-document evidence with the published transaction packet rules. Distinguish present and complete, present but incomplete, present but unreadable, missing, not applicable, and needs more facts. A failed OCR search never proves that a form is missing.
+- Call assessTransactionPacketRules after establishing the transaction facts. Pass a present document key only after page evidence identifies that form. Treat the database rule assessment as applicability guidance and the document pages as proof of presence and execution.
 - Determine conditional forms from verified transaction facts such as representation, property type and year, financing, agency relationship, offer status, and lifecycle stage. Never infer applicability merely because a blank form appears in a template packet.
 - The signed contract controls transaction obligations and deadlines. If a deadline is absent, unreadable, or ambiguous, request human review. Never substitute a typical range or office reminder.
 - Never use web search to decide what an uploaded contract says. Contract text outranks the web, general knowledge, and memory.
@@ -191,8 +192,8 @@ Communication rules:
 - Every consumer email requires broker approval.
 - An action proposal is not a completed action.
 
-Relevant personal context:
-${renderPersonalContext(opts.memories)}
+Relevant memory and standing instructions:
+${renderMemoryContext(opts.memories)}
 
 Relevant published knowledge:
 ${renderKnowledgeContext(opts.knowledge)}

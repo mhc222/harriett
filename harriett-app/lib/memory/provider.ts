@@ -70,7 +70,7 @@ export class SupabaseMemoryProvider implements MemoryProvider {
       .from("memories")
       .select("id, office_id, agent_id, scope, category, content, provenance, confidence, status, sensitivity")
       .eq("office_id", officeId)
-      .eq("agent_id", agentId)
+      .or(`agent_id.eq.${agentId},scope.eq.office`)
       .neq("status", "superseded")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(`memory list failed: ${error.message}`);
@@ -83,6 +83,20 @@ export class SupabaseMemoryProvider implements MemoryProvider {
     query: string,
     limit = 5
   ): Promise<MemorySearchResult[]> {
+    const { data: officeRows, error: officeError } = await this.db
+      .from("memories")
+      .select("id, category, content, confidence, sensitivity")
+      .eq("office_id", officeId)
+      .eq("scope", "office")
+      .eq("status", "active")
+      .order("updated_at", { ascending: false })
+      .limit(3);
+    if (officeError) throw new Error(`office memory search failed: ${officeError.message}`);
+    const officeInstructions = (officeRows ?? []).map((row) => ({
+      ...row,
+      score: null,
+    })) as MemorySearchResult[];
+
     let embedding: number[] | null = null;
     try {
       embedding = await embedText(query);
@@ -97,7 +111,10 @@ export class SupabaseMemoryProvider implements MemoryProvider {
         requested_agent_id: agentId,
         match_count: Math.min(limit, 10),
       });
-      if (!error && data) return data as MemorySearchResult[];
+      if (!error && data) {
+        const personal = data as MemorySearchResult[];
+        return [...officeInstructions, ...personal].slice(0, Math.min(limit, 10));
+      }
     }
 
     const { data, error } = await this.db
@@ -110,7 +127,8 @@ export class SupabaseMemoryProvider implements MemoryProvider {
       .order("updated_at", { ascending: false })
       .limit(Math.min(limit, 10));
     if (error) throw new Error(`memory fallback search failed: ${error.message}`);
-    return (data ?? []).map((row) => ({ ...row, score: null })) as MemorySearchResult[];
+    const personal = (data ?? []).map((row) => ({ ...row, score: null })) as MemorySearchResult[];
+    return [...officeInstructions, ...personal].slice(0, Math.min(limit, 10));
   }
 
   async save(record: MemoryRecord): Promise<MemoryRecord & { id: string }> {
@@ -214,4 +232,3 @@ export class SupabaseMemoryProvider implements MemoryProvider {
     return replacement;
   }
 }
-

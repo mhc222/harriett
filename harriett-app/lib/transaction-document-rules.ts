@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type TransactionStage =
   | "relationship"
   | "pre_listing"
@@ -63,26 +65,27 @@ export interface TransactionDocumentRule {
   humanReviewNotes: string[];
 }
 
-export interface TransactionPacketFacts {
-  stage: TransactionStage;
-  individualConsumer: boolean | null;
-  propertyManagement: boolean | null;
-  sellerRepresentation: boolean | null;
-  buyerRepresentation: boolean | null;
-  submittingOffer: boolean | null;
-  writtenOfferOrContract: boolean | null;
-  offerOrCounteroffer: boolean | null;
-  singleFamilyResidential: boolean | null;
-  residential: boolean | null;
-  yearBuilt: number | null;
-  financingType: "cash" | "conventional" | "fha" | "va" | "usda" | "other" | "unknown";
-  consumerMortgage: boolean | null;
-  dualAgency: boolean | null;
-  designatedSingleAgency: boolean | null;
-  pmListing: boolean | null;
-  pmTransaction: boolean | null;
-  closed: boolean | null;
-}
+export const TransactionPacketFactsSchema = z.object({
+  stage: z.enum(["relationship", "pre_listing", "listing_active", "offer", "under_contract", "pre_closing", "closed"]),
+  individualConsumer: z.boolean().nullable(),
+  propertyManagement: z.boolean().nullable(),
+  sellerRepresentation: z.boolean().nullable(),
+  buyerRepresentation: z.boolean().nullable(),
+  submittingOffer: z.boolean().nullable(),
+  writtenOfferOrContract: z.boolean().nullable(),
+  offerOrCounteroffer: z.boolean().nullable(),
+  singleFamilyResidential: z.boolean().nullable(),
+  residential: z.boolean().nullable(),
+  yearBuilt: z.number().int().min(1600).max(2200).nullable(),
+  financingType: z.enum(["cash", "conventional", "fha", "va", "usda", "other", "unknown"]),
+  consumerMortgage: z.boolean().nullable(),
+  dualAgency: z.boolean().nullable(),
+  designatedSingleAgency: z.boolean().nullable(),
+  pmListing: z.boolean().nullable(),
+  pmTransaction: z.boolean().nullable(),
+  closed: z.boolean().nullable(),
+});
+export type TransactionPacketFacts = z.infer<typeof TransactionPacketFactsSchema>;
 
 export type ApplicabilityResult = "applies" | "not_applicable" | "needs_facts";
 

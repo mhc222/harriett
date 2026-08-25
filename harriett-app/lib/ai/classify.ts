@@ -7,12 +7,24 @@ Use deal_lookup or checklist for operational transaction facts. Use document_loo
 
 needsMemory means personal context would materially improve the response. It does not mean memory can prove a deal, policy, email, calendar, contact, or property fact. needsKnowledge means published office or regulatory evidence is needed. requestedMutation is true for any request to create, update, delete, send, save, remember, forget, approve, reject, assign, or complete something.`;
 
+const PACKET_RULE_REQUEST = /\b(packet|contract|agreement|addendum|disclosure|closing document|transaction document|form)\b[\s\S]{0,120}\b(missing|required|applicable|complete|completeness|signed|consistent|need|needs)\b|\b(missing|required|applicable|complete|completeness|signed|consistent)\b[\s\S]{0,120}\b(packet|contract|agreement|addendum|disclosure|closing document|transaction document|form)\b/i;
+
+export function enforceEvidenceRouting(message: string, intent: AgentIntent): AgentIntent {
+  if (!PACKET_RULE_REQUEST.test(message)) return intent;
+  return {
+    ...intent,
+    intent: "document_lookup",
+    needsKnowledge: true,
+  };
+}
+
 export async function classifyAgentIntent(message: string): Promise<AgentIntent> {
-  return generateStructured({
+  const intent = await generateStructured({
     schema: AgentIntentSchema,
     system: CLASSIFIER_SYSTEM,
     content: message,
     tier: "fast",
     maxOutputTokens: 300,
   });
+  return enforceEvidenceRouting(message, intent);
 }

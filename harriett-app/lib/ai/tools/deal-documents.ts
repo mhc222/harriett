@@ -5,6 +5,11 @@ import { withSkillTrace } from "@/lib/execution-trace";
 import { generateStructured } from "@/lib/ai/generate";
 import { embedText, vectorLiteral } from "@/lib/ai/embeddings";
 import { indexDealDocument, type IndexableDocument } from "@/lib/document-index";
+import {
+  TRANSACTION_DOCUMENT_RULES,
+  TransactionPacketFactsSchema,
+  assessTransactionPacket,
+} from "@/lib/transaction-document-rules";
 
 const DocumentRowSchema = z.object({
   id: z.string().uuid(),
@@ -66,6 +71,55 @@ export function createDealDocumentTools(context: SkillContext) {
     );
 
   return {
+    assessTransactionPacketRules: tool({
+      description: "Evaluate which transaction documents apply from verified transaction facts. Use presentDocumentKeys only for forms already identified from page evidence. This tool reads the approved office rule catalog and returns applies, not applicable, or needs facts without guessing.",
+      inputSchema: z.object({
+        facts: TransactionPacketFactsSchema,
+        presentDocumentKeys: z.array(z.string().trim().min(1).max(120)).max(50).default([]),
+      }),
+      execute: (input) => tracked("assess_transaction_packet_rules", input, async () => {
+        const knownKeys = new Set(TRANSACTION_DOCUMENT_RULES.map((rule) => rule.key));
+        const unknownPresentKeys = input.presentDocumentKeys.filter((key) => !knownKeys.has(key));
+        if (unknownPresentKeys.length) {
+          throw new Error(`unknown transaction document keys: ${unknownPresentKeys.join(", ")}`);
+        }
+
+        const { data: catalog, error } = await context.db
+          .from("transaction_document_rules")
+          .select("rule_key, title, version, requirement_level, missing_severity, authority_source_ids")
+          .eq("office_id", context.officeId)
+          .eq("status", "approved");
+        if (error) throw new Error(`transaction document rule lookup failed: ${error.message}`);
+
+        const approved = new Map((catalog ?? []).map((rule) => [rule.rule_key, rule]));
+        const missingCatalogKeys = TRANSACTION_DOCUMENT_RULES
+          .map((rule) => rule.key)
+          .filter((key) => !approved.has(key));
+        if (missingCatalogKeys.length) {
+          throw new Error(`approved transaction document rules are incomplete: ${missingCatalogKeys.join(", ")}`);
+        }
+
+        const assessments = assessTransactionPacket(input.facts, input.presentDocumentKeys)
+          .map((assessment) => ({
+            ...assessment,
+            ruleVersion: Number(approved.get(assessment.documentKey)?.version ?? 1),
+            authoritySourceIds: approved.get(assessment.documentKey)?.authority_source_ids ?? [],
+          }));
+        return {
+          facts: input.facts,
+          assessments,
+          summary: {
+            applicableMissingBlockers: assessments.filter((item) =>
+              item.applicability === "applies" && !item.present && item.missingSeverity === "block"
+            ).length,
+            applicableMissingFlags: assessments.filter((item) =>
+              item.applicability === "applies" && !item.present && item.missingSeverity === "flag"
+            ).length,
+            needsFacts: assessments.filter((item) => item.applicability === "needs_facts").length,
+          },
+        };
+      }),
+    }),
     listDealDocuments: tool({
       description: "List the agent's uploaded transaction documents. Use this first when the requested contract or document is not unambiguous. Never guess which contract the agent means.",
       inputSchema: z.object({
