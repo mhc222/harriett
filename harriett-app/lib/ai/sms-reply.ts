@@ -22,6 +22,7 @@ export async function generateAgentSmsReply(opts: {
   officeName: string;
   agentId: string;
   agentName: string;
+  aiRunId: string;
   history: SmsHistoryRow[];
   deals: DealSummary[];
 }): Promise<string> {
@@ -34,6 +35,7 @@ export async function generateAgentSmsReply(opts: {
     officeId: opts.officeId,
     agentId: opts.agentId,
     actor: "harriett",
+    aiRunId: opts.aiRunId,
   });
   const instructions = `You are Harriett, the AI transaction assistant for ${opts.officeName}.
 
@@ -75,4 +77,3 @@ ${JSON.stringify(opts.deals)}`;
   if (!reply) throw new Error("Harriett generated an empty SMS reply");
   return reply;
 }
-

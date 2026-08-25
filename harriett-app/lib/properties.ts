@@ -9,6 +9,7 @@ import {
   type PropertyValueInput,
 } from "@/lib/integrations/rentcast";
 import { saveListingResearch, saveValuationResearch } from "@/lib/property-research";
+import { withProviderSyncTrace } from "@/lib/execution-trace";
 
 export interface PropertyAccessContext {
   db: SupabaseClient;
@@ -54,20 +55,27 @@ export async function searchProperties(context: PropertyAccessContext, input: Pr
     maxResults: input.maxResults,
   };
   try {
-    const result = await searchSaleListings(input);
-    await writeAudit(context.db, {
-      officeId: context.officeId,
-      actor: context.actor,
-      actorId: context.actorId,
-      agentId: context.agentId,
-      action: "property.search",
-      payload: {
-        ...auditPayload,
-        provider: "rentcast",
-        resultCount: result.listings.length,
-        totalCount: result.totalCount,
+    const result = await withProviderSyncTrace(
+      { db: context.db, officeId: context.officeId, provider: "rentcast" },
+      async () => {
+        const response = await searchSaleListings(input);
+        await writeAudit(context.db, {
+          officeId: context.officeId,
+          actor: context.actor,
+          actorId: context.actorId,
+          agentId: context.agentId,
+          action: "property.search",
+          payload: {
+            ...auditPayload,
+            provider: "rentcast",
+            resultCount: response.listings.length,
+            totalCount: response.totalCount,
+          },
+        });
+        return response;
       },
-    });
+      (response) => ({ receivedCount: response.listings.length, changedCount: 0 })
+    );
     return { ...result, source: "rentcast" as const, notice: SOURCE_NOTICE };
   } catch (error) {
     await auditFailure(context, "property.search", auditPayload, error);
@@ -77,21 +85,28 @@ export async function searchProperties(context: PropertyAccessContext, input: Pr
 
 export async function lookupProperty(context: PropertyAccessContext, id: string) {
   try {
-    const listing = await getSaleListing(id);
-    const savedResearch = await saveListingResearch(context, listing, SOURCE_NOTICE);
-    await writeAudit(context.db, {
-      officeId: context.officeId,
-      actor: context.actor,
-      actorId: context.actorId,
-      agentId: context.agentId,
-      action: "property.lookup",
-      payload: { provider: "rentcast", listingId: id, researchId: savedResearch.researchId },
-    });
+    const result = await withProviderSyncTrace(
+      { db: context.db, officeId: context.officeId, provider: "rentcast" },
+      async () => {
+        const listing = await getSaleListing(id);
+        const savedResearch = await saveListingResearch(context, listing, SOURCE_NOTICE);
+        await writeAudit(context.db, {
+          officeId: context.officeId,
+          actor: context.actor,
+          actorId: context.actorId,
+          agentId: context.agentId,
+          action: "property.lookup",
+          payload: { provider: "rentcast", listingId: id, researchId: savedResearch.researchId },
+        });
+        return { listing, savedResearch };
+      },
+      () => ({ receivedCount: 1, changedCount: 1 })
+    );
     return {
-      listing,
+      listing: result.listing,
       source: "rentcast" as const,
       notice: SOURCE_NOTICE,
-      ...savedResearch,
+      ...result.savedResearch,
     };
   } catch (error) {
     await auditFailure(context, "property.lookup", { listingId: id }, error);
@@ -104,27 +119,34 @@ export async function estimatePropertyValue(
   input: PropertyValueInput
 ) {
   try {
-    const estimate = await getPropertyValueEstimate(input);
-    const notice = `${SOURCE_NOTICE} This estimate is not an appraisal or a broker-approved CMA.`;
-    const savedResearch = await saveValuationResearch(context, input, estimate, notice);
-    await writeAudit(context.db, {
-      officeId: context.officeId,
-      actor: context.actor,
-      actorId: context.actorId,
-      agentId: context.agentId,
-      action: "property.value_estimated",
-      payload: {
-        provider: "rentcast",
-        address: input.address,
-        comparableCount: estimate.comparables.length,
-        researchId: savedResearch.researchId,
+    const result = await withProviderSyncTrace(
+      { db: context.db, officeId: context.officeId, provider: "rentcast" },
+      async () => {
+        const estimate = await getPropertyValueEstimate(input);
+        const notice = `${SOURCE_NOTICE} This estimate is not an appraisal or a broker-approved CMA.`;
+        const savedResearch = await saveValuationResearch(context, input, estimate, notice);
+        await writeAudit(context.db, {
+          officeId: context.officeId,
+          actor: context.actor,
+          actorId: context.actorId,
+          agentId: context.agentId,
+          action: "property.value_estimated",
+          payload: {
+            provider: "rentcast",
+            address: input.address,
+            comparableCount: estimate.comparables.length,
+            researchId: savedResearch.researchId,
+          },
+        });
+        return { estimate, notice, savedResearch };
       },
-    });
+      () => ({ receivedCount: 1, changedCount: 1 })
+    );
     return {
-      estimate,
+      estimate: result.estimate,
       source: "rentcast" as const,
-      notice,
-      ...savedResearch,
+      notice: result.notice,
+      ...result.savedResearch,
     };
   } catch (error) {
     await auditFailure(context, "property.value_estimated", { address: input.address }, error);
