@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DealFieldsSchema } from "@/lib/contracts/deal";
+import { DealFieldsSchema, normalizeDealExtraction } from "@/lib/contracts/deal";
 
 const baseDeal = {
   address: "123 Main Street",
@@ -88,5 +88,35 @@ describe("DealFieldsSchema contract mapping", () => {
       }],
     });
     expect(result.success).toBe(false);
+  });
+
+  it("normalizes provider sentinel values before CRM persistence", () => {
+    const normalized = normalizeDealExtraction({
+      ...baseDeal,
+      county: "",
+      listPrice: -1,
+      buyerAgent: "",
+      buyerBrokerage: "",
+      listingDate: "",
+      bedBath: "",
+      sqft: -1,
+      yearBuilt: -1,
+      mlsNumber: "",
+      parcelId: "",
+      subdivision: "",
+      loanType: "",
+      earnestMoney: -1,
+      sellerConcessions: -1,
+      transactionContacts: [{
+        name: "Closing Attorney",
+        role: "attorney",
+        company: "",
+        email: "",
+        phone: "",
+      }],
+    });
+    expect(normalized.county).toBeNull();
+    expect(normalized.listPrice).toBeNull();
+    expect(normalized.transactionContacts[0].email).toBeNull();
   });
 });

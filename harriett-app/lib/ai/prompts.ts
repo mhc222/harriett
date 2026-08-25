@@ -28,7 +28,7 @@ Alabama rules:
 - If loanType changed mid-transaction, FHA Amendatory Clause must be re-executed.
 - Seller concessions tracked separately from sale price.
 
-If a value is not found, use null for nullable fields and an empty array for collections with no supported items. Include every field in the response. Never make a reasonable inference. Set compliance flags from explicit document or property evidence only; a flag may identify required review, but it must not claim a form was executed without evidence.`;
+If a value is not found, use an empty string for text, -1 for numbers, page 0 for an unknown page, and an empty array for collections with no supported items. Include every field in the response. Never make a reasonable inference. Set compliance flags from explicit document or property evidence only; a flag may identify required review, but it must not claim a form was executed without evidence.`;
 
 export const CHECKLIST_SYSTEM = `You are Harriett, an AI transaction assistant for Pritchett-Moore Real Estate in Tuscaloosa, Alabama.
 
