@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
-import { validTwilioSignature } from "@/lib/sms";
-
-function localStatus(twilioStatus: string): "queued" | "sent" | "delivered" | "failed" {
-  if (twilioStatus === "delivered" || twilioStatus === "read") return "delivered";
-  if (twilioStatus === "sent" || twilioStatus === "sending") return "sent";
-  if (["failed", "undelivered", "canceled"].includes(twilioStatus)) return "failed";
-  return "queued";
-}
+import { resolveDeliveryStatus, validTwilioSignature } from "@/lib/sms";
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -30,18 +23,23 @@ export async function POST(request: Request) {
   }
 
   const db = createServiceClient();
-  const { data: message } = await db
+  const { data: message, error: lookupError } = await db
     .from("messages")
-    .select("id, office_id, agent_id, deal_id, status")
+    .select("id, office_id, agent_id, deal_id, channel, status")
     .eq("provider_message_id", messageSid)
     .maybeSingle();
+  if (lookupError) {
+    return NextResponse.json({ error: "message lookup unavailable" }, { status: 503 });
+  }
 
   if (!message) return new NextResponse(null, { status: 204 });
 
-  const status = localStatus(params.MessageStatus ?? "queued");
-  const { error } = await db.from("messages").update({ status }).eq("id", message.id);
-  if (error) {
-    return NextResponse.json({ error: "status update failed" }, { status: 500 });
+  const resolution = resolveDeliveryStatus(message.status, params.MessageStatus ?? "queued");
+  if (resolution.changed) {
+    const { error } = await db.from("messages").update({ status: resolution.status }).eq("id", message.id);
+    if (error) {
+      return NextResponse.json({ error: "status update failed" }, { status: 500 });
+    }
   }
 
   await writeAudit(db, {
@@ -49,11 +47,13 @@ export async function POST(request: Request) {
     actor: "system",
     agentId: message.agent_id,
     dealId: message.deal_id ?? undefined,
-    action: "sms.delivery_updated",
+    action: resolution.changed
+      ? `${message.channel}.delivery_updated`
+      : `${message.channel}.delivery_ignored_stale`,
     payload: {
       messageId: message.id,
       previousStatus: message.status,
-      status,
+      status: resolution.status,
       providerStatus: params.MessageStatus,
       errorCode: params.ErrorCode || undefined,
     },

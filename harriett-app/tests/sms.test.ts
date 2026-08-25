@@ -3,6 +3,7 @@ import {
   assertSendAllowed,
   detectConsentIntent,
   messageDeliveryMode,
+  resolveDeliveryStatus,
   sendAgentMessage,
   smsDeliveryMode,
   smsGuardrailViolation,
@@ -98,6 +99,34 @@ describe("twilioSendingEnabled", () => {
     else process.env.SMS_DELIVERY_MODE = originalSmsMode;
     if (originalWhatsappMode === undefined) delete process.env.WHATSAPP_DELIVERY_MODE;
     else process.env.WHATSAPP_DELIVERY_MODE = originalWhatsappMode;
+  });
+});
+
+describe("resolveDeliveryStatus", () => {
+  it("does not regress a delivered or read message to sent", () => {
+    expect(resolveDeliveryStatus("delivered", "sent")).toEqual({
+      status: "delivered",
+      changed: false,
+    });
+    expect(resolveDeliveryStatus("delivered", "read")).toEqual({
+      status: "delivered",
+      changed: false,
+    });
+  });
+
+  it("advances delivery and preserves terminal failures", () => {
+    expect(resolveDeliveryStatus("sent", "delivered")).toEqual({
+      status: "delivered",
+      changed: true,
+    });
+    expect(resolveDeliveryStatus("sent", "undelivered")).toEqual({
+      status: "failed",
+      changed: true,
+    });
+    expect(resolveDeliveryStatus("failed", "delivered")).toEqual({
+      status: "failed",
+      changed: false,
+    });
   });
 });
 

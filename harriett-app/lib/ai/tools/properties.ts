@@ -10,6 +10,8 @@ import {
   type PropertyAccessContext,
 } from "@/lib/properties";
 import { withSkillTrace } from "@/lib/execution-trace";
+import { createSellerAppointmentBrief } from "@/lib/seller-brief";
+import { z } from "zod";
 
 export function createPropertyTools(context: PropertyAccessContext & { aiRunId: string }) {
   const harriettContext = { ...context, actor: "harriett" as const };
@@ -49,6 +51,16 @@ export function createPropertyTools(context: PropertyAccessContext & { aiRunId: 
         "property_cma_prep",
         input,
         () => preparePropertyCma(harriettContext, input)
+      ),
+    }),
+    createSellerBrief: tool({
+      description:
+        "Create and save a seller appointment brief from a completed property research run. Use this after prepareCma when the agent explicitly requests a seller brief. Pass the researchId returned by prepareCma.",
+      inputSchema: z.object({ researchId: z.string().uuid() }),
+      execute: (input) => tracked(
+        "property_seller_brief",
+        input,
+        () => createSellerAppointmentBrief(harriettContext, input.researchId)
       ),
     }),
   };

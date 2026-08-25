@@ -65,16 +65,22 @@ export async function POST(request: Request) {
   const body = params.Body ?? "";
   const db = createServiceClient();
 
-  const { data: agent } = await db
+  const { data: agent, error: agentLookupError } = await db
     .from("agents")
     .select("id, office_id, name, phone, sms_consent")
     .eq("phone", from)
     .maybeSingle();
+  if (agentLookupError) {
+    return NextResponse.json({ error: "agent lookup unavailable" }, { status: 503 });
+  }
 
   if (!agent) {
     // Unknown sender: log and stay silent. Harriett only converses with
     // enrolled agents.
-    const { data: office } = await db.from("offices").select("id").single();
+    const { data: office, error: officeLookupError } = await db.from("offices").select("id").single();
+    if (officeLookupError) {
+      return NextResponse.json({ error: "office lookup unavailable" }, { status: 503 });
+    }
     if (office) {
       await writeAudit(db, {
         officeId: office.id,

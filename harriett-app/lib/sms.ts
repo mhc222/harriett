@@ -103,6 +103,34 @@ interface AgentRow {
 }
 
 export type AgentMessagingChannel = "sms" | "whatsapp";
+export type DeliveryStatus = "queued" | "sent" | "delivered" | "failed";
+
+export function localDeliveryStatus(twilioStatus: string): DeliveryStatus {
+  if (twilioStatus === "delivered" || twilioStatus === "read") return "delivered";
+  if (twilioStatus === "sent" || twilioStatus === "sending") return "sent";
+  if (["failed", "undelivered", "canceled"].includes(twilioStatus)) return "failed";
+  return "queued";
+}
+
+export function resolveDeliveryStatus(
+  currentStatus: string,
+  providerStatus: string
+): { status: DeliveryStatus; changed: boolean } {
+  const incoming = localDeliveryStatus(providerStatus);
+  if (currentStatus === "failed") return { status: "failed", changed: false };
+  if (incoming === "failed") return { status: "failed", changed: currentStatus !== "failed" };
+  const rank: Record<Exclude<DeliveryStatus, "failed">, number> = {
+    queued: 0,
+    sent: 1,
+    delivered: 2,
+  };
+  const currentRank = currentStatus in rank
+    ? rank[currentStatus as keyof typeof rank]
+    : -1;
+  return incoming in rank && rank[incoming as keyof typeof rank] > currentRank
+    ? { status: incoming, changed: true }
+    : { status: (currentStatus in rank ? currentStatus : incoming) as DeliveryStatus, changed: false };
+}
 
 export function validateAgentMediaUrls(channel: AgentMessagingChannel, mediaUrls?: string[]): string[] {
   if (!mediaUrls?.length) return [];
