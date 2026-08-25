@@ -25,11 +25,13 @@ const LISTING = {
 
 describe("RentCast integration", () => {
   beforeEach(() => {
+    process.env.RENTCAST_ENABLED = "true";
     process.env.RENTCAST_API_KEY = "test-key";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete process.env.RENTCAST_ENABLED;
     delete process.env.RENTCAST_API_KEY;
   });
 
@@ -142,6 +144,17 @@ describe("RentCast integration", () => {
 
   it("does not make a request without a configured key", async () => {
     delete process.env.RENTCAST_API_KEY;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      searchSaleListings({ city: "Tuscaloosa", state: "AL" })
+    ).rejects.toMatchObject({ code: "not_configured" } satisfies Partial<RentCastError>);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not make a request while RentCast is disabled", async () => {
+    process.env.RENTCAST_ENABLED = "false";
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 

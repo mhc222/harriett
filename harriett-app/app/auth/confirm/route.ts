@@ -13,18 +13,24 @@ const emailOtpTypeSchema = z.enum([
 ]) satisfies z.ZodType<EmailOtpType>;
 const authCredentialSchema = z.string().min(1).max(4096);
 
+function safeNextPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  return value;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = authCredentialSchema.safeParse(searchParams.get("code"));
   const tokenHash = authCredentialSchema.safeParse(searchParams.get("token_hash"));
   const type = emailOtpTypeSchema.safeParse(searchParams.get("type"));
+  const nextPath = safeNextPath(searchParams.get("next"));
 
   const supabase = await createUserClient();
 
   if (code.success) {
     const { error } = await supabase.auth.exchangeCodeForSession(code.data);
     if (!error) {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL(nextPath, request.url));
     }
   }
 
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
       token_hash: tokenHash.data,
     });
     if (!error) {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL(nextPath, request.url));
     }
   }
   return NextResponse.redirect(new URL("/login?error=invalid_link", request.url));

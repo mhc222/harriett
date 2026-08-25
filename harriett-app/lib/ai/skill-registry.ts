@@ -335,6 +335,7 @@ export function createRuntimeTools(
     officeId: context.officeId,
     agentId: context.agentId,
     actor: "harriett",
+    aiRunId: context.aiRunId,
   });
   return {
     ...(allowed.has("structured") ? { searchDeals: tool({

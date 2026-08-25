@@ -16,14 +16,31 @@ export default defineConfig({
       syncEnvVars(() => [
         ...[
           "SMS_DELIVERY_MODE",
+          "WHATSAPP_DELIVERY_MODE",
           "TWILIO_SEND_ENABLED",
+          "TWILIO_ACCOUNT_SID",
+          "TWILIO_WHATSAPP_FROM",
+          "TWILIO_WHATSAPP_STATUS_CALLBACK_URL",
+          "RENTCAST_ENABLED",
+          "BRIGHT_DATA_ENABLED",
+          "BRIGHT_DATA_ZILLOW_DATASET_ID",
           "MEMORY_MODE",
           "MEM0_TELEMETRY",
           "MEM0_LLM_MODEL",
         ]
           .filter((name) => process.env[name])
           .map((name) => ({ name, value: process.env[name]! })),
-        ...["OPENAI_API_KEY"]
+        ...[
+          "ANTHROPIC_API_KEY",
+          "OPENAI_API_KEY",
+          "NEXT_PUBLIC_SUPABASE_URL",
+          "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+          "NEXT_PUBLIC_APP_URL",
+          "SUPABASE_SERVICE_ROLE_KEY",
+          "TWILIO_AUTH_TOKEN",
+          "RENTCAST_API_KEY",
+          "BRIGHT_DATA_API_KEY",
+        ]
           .filter((name) => process.env[name])
           .map((name) => ({ name, value: process.env[name]!, isSecret: true })),
       ]),

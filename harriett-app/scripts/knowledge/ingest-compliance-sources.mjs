@@ -95,14 +95,18 @@ async function readSourceText(source) {
     const path = source.local_path;
     const ext = extname(path).toLowerCase();
     if (ext === ".pdf") {
+      const text = readPdfText(path);
       return {
-        storagePath: path,
-        text: readPdfText(path),
+        storagePath: source.source_url || path,
+        rawContent: text,
+        text,
       };
     }
+    const text = readFileSync(path, "utf8");
     return {
-      storagePath: path,
-      text: readFileSync(path, "utf8"),
+      storagePath: source.source_url || path,
+      rawContent: text,
+      text,
     };
   }
 
@@ -118,6 +122,7 @@ async function readSourceText(source) {
   const body = await response.text();
   return {
     storagePath: source.source_url,
+    rawContent: body,
     text: contentType.includes("html") ? stripHtml(body) : body,
   };
 }
@@ -237,34 +242,37 @@ function dbClient() {
 }
 
 async function findOrCreateSource(db, officeId, source) {
-  const { data: existing, error: selectError } = await db
+  let sourceQuery = db
     .from("knowledge_sources")
-    .select("id")
-    .eq("office_id", officeId)
-    .eq("title", source.title)
-    .eq("source_url", source.source_url || null)
-    .maybeSingle();
+    .select("id, status")
+    .eq("office_id", officeId);
+  sourceQuery = source.source_url
+    ? sourceQuery.eq("source_url", source.source_url)
+    : sourceQuery.eq("title", source.title).is("source_url", null);
+  const { data: existing, error: selectError } = await sourceQuery.maybeSingle();
   if (selectError) throw selectError;
   if (existing) {
     const { error } = await db
       .from("knowledge_sources")
       .update({
+        title: source.title,
         kind: source.kind,
         authority: source.authority,
-        status: source.status,
         effective_from: source.effective_from || null,
         effective_to: source.effective_to || null,
         metadata: {
+          ...(source.metadata || {}),
           manifest_id: source.id,
           publisher: source.publisher,
           jurisdiction: source.jurisdiction,
           notes: source.notes,
         },
         updated_at: new Date().toISOString(),
+        ...(source.metadata?.review_on_change ? {} : { status: source.status }),
       })
       .eq("id", existing.id);
     if (error) throw error;
-    return existing.id;
+    return { id: existing.id, status: existing.status, existed: true };
   }
 
   const { data, error } = await db
@@ -279,6 +287,7 @@ async function findOrCreateSource(db, officeId, source) {
       effective_from: source.effective_from || null,
       effective_to: source.effective_to || null,
       metadata: {
+        ...(source.metadata || {}),
         manifest_id: source.id,
         publisher: source.publisher,
         jurisdiction: source.jurisdiction,
@@ -288,7 +297,7 @@ async function findOrCreateSource(db, officeId, source) {
     .select("id")
     .single();
   if (error) throw error;
-  return data.id;
+  return { id: data.id, status: source.status, existed: false };
 }
 
 async function nextVersion(db, sourceId) {
@@ -313,8 +322,18 @@ async function hashExists(db, sourceId, contentHash) {
   return data;
 }
 
-async function insertSource(db, officeId, source, chunks, storagePath, contentHash, options) {
-  const sourceId = await findOrCreateSource(db, officeId, source);
+async function insertSource(
+  db,
+  officeId,
+  source,
+  chunks,
+  storagePath,
+  rawContent,
+  contentHash,
+  options
+) {
+  const sourceRecord = await findOrCreateSource(db, officeId, source);
+  const sourceId = sourceRecord.id;
   const existingVersion = await hashExists(db, sourceId, contentHash);
   if (existingVersion) {
     return {
@@ -326,6 +345,17 @@ async function insertSource(db, officeId, source, chunks, storagePath, contentHa
   }
 
   const version = await nextVersion(db, sourceId);
+  const nextStatus =
+    sourceRecord.existed && source.metadata?.review_on_change
+      ? "review"
+      : source.status;
+  if (nextStatus !== sourceRecord.status) {
+    const { error: statusError } = await db
+      .from("knowledge_sources")
+      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .eq("id", sourceId);
+    if (statusError) throw statusError;
+  }
   const { data: versionRow, error: versionError } = await db
     .from("knowledge_versions")
     .insert({
@@ -333,8 +363,11 @@ async function insertSource(db, officeId, source, chunks, storagePath, contentHa
       source_id: sourceId,
       version,
       storage_path: storagePath,
+      raw_content: rawContent,
+      source_content_type: source.content_type || "text/plain",
+      retrieved_at: new Date().toISOString(),
       content_hash: contentHash,
-      published_at: source.status === "published" ? new Date().toISOString() : null,
+      published_at: nextStatus === "published" ? new Date().toISOString() : null,
     })
     .select("id")
     .single();
@@ -381,7 +414,7 @@ async function main() {
 
   const db = args.dryRun ? null : dbClient();
   for (const source of sources) {
-    const { text, storagePath } = await readSourceText(source);
+    const { text, storagePath, rawContent } = await readSourceText(source);
     const normalized = normalizeWhitespace(text);
     const chunks = chunkText(normalized);
     const contentHash = hashText(normalized);
@@ -401,6 +434,7 @@ async function main() {
       source,
       chunks,
       storagePath,
+      rawContent,
       contentHash,
       args
     );

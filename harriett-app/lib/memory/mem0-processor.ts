@@ -11,6 +11,16 @@ Never extract deal facts, transaction status, dates, deadlines, prices, property
 
 let processorPromise: Promise<import("mem0ai/oss").Memory> | null = null;
 
+async function ensureServerWebSocket(): Promise<void> {
+  if (typeof globalThis.WebSocket !== "undefined") return;
+  const { WebSocket } = await import("ws");
+  Object.defineProperty(globalThis, "WebSocket", {
+    configurable: true,
+    value: WebSocket,
+    writable: true,
+  });
+}
+
 export function mem0Configured(): boolean {
   return Boolean(
     process.env.OPENAI_API_KEY &&
@@ -23,6 +33,7 @@ async function mem0Processor(): Promise<import("mem0ai/oss").Memory> {
   if (!mem0Configured()) {
     throw new Error("Mem0 OSS requires OPENAI_API_KEY for extraction embeddings");
   }
+  await ensureServerWebSocket();
   if (!processorPromise) {
     process.env.MEM0_TELEMETRY = "false";
     processorPromise = import("mem0ai/oss").then(({ Memory }) => new Memory({
@@ -65,7 +76,7 @@ export async function extractWithMem0(opts: {
   messageId: string;
   agentMessage: string;
   assistantResponse: string;
-  channel: "sms" | "pwa";
+  channel: "sms" | "whatsapp" | "pwa";
 }): Promise<RawMemoryCandidate[]> {
   const processor = await mem0Processor();
   const result = await processor.add([

@@ -212,6 +212,10 @@ export class RentCastError extends Error {
   }
 }
 
+export function rentCastEnabled(): boolean {
+  return process.env.RENTCAST_ENABLED !== "false";
+}
+
 function numericRange(minimum?: number, maximum?: number): string | undefined {
   if (minimum === undefined && maximum === undefined) return undefined;
   return `${minimum ?? "*"}:${maximum ?? "*"}`;
@@ -227,6 +231,10 @@ async function rentCastRequest<T>(path: string, schema: z.ZodType<T>): Promise<{
   data: T;
   totalCount?: number;
 }> {
+  if (!rentCastEnabled()) {
+    throw new RentCastError("RentCast is disabled", "not_configured", 503);
+  }
+
   const apiKey = process.env.RENTCAST_API_KEY;
   if (!apiKey) {
     throw new RentCastError("RentCast is not configured", "not_configured", 503);

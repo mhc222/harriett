@@ -2,7 +2,7 @@ import { z } from "zod";
 import { PostgresUuidSchema } from "@/lib/contracts/scalars";
 
 export const MemoryProvenanceSchema = z.object({
-  source: z.enum(["onboarding", "sms", "pwa", "draft_correction", "manual"]),
+  source: z.enum(["onboarding", "sms", "whatsapp", "pwa", "draft_correction", "manual"]),
   sourceId: z.string().optional(),
   explicit: z.boolean(),
   observedAt: z.string().datetime(),

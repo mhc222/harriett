@@ -329,8 +329,12 @@ for vendor map work.
 - Exact dotloop migration date and API access plan.
 - Vendor map contents per pilot agent (starter data exists from demo transaction above).
 - Time-saved / value estimate for the pre-listing stage (not yet quantified).
-- CMA data-access path: where comps can be pulled with least friction (MLS, CRS, or a
-  third-party route), given no clean API and dirty source records.
+- Near-term CMA skill: design Harriett's dedicated CMA/pre-listing research skill sooner
+  than the later MLS phase. Start with existing open-source real estate/CMA/valuation
+  repos and tools, then wrap RentCast, MLS/CRS, and any later HouseCanary/Smarty-style
+  providers behind Harriett's own comp-selection, outlier-flagging, citation, and
+  agent-review workflow. Keep every pricing output draft-only; the agent owns the final
+  CMA and listing-price recommendation.
 - Confirm identity of Gail (executive admin cc'd on all coordinator comms) and whether
   she stays in workflows or Wilson/Tanner replace her post-Harriett.
 - Instanet notification email patterns: need one example to build Phase 2 detection parser.

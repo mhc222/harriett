@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAudit } from "@/lib/audit";
+import { buildCmaPrep } from "@/lib/cma";
 import {
   getPropertyValueEstimate,
   getSaleListing,
@@ -7,6 +8,7 @@ import {
   type PropertySearchInput,
   type PropertyValueInput,
 } from "@/lib/integrations/rentcast";
+import { saveListingResearch, saveValuationResearch } from "@/lib/property-research";
 
 export interface PropertyAccessContext {
   db: SupabaseClient;
@@ -14,6 +16,7 @@ export interface PropertyAccessContext {
   agentId: string;
   actor: "harriett" | "user";
   actorId?: string;
+  aiRunId?: string;
 }
 
 const SOURCE_NOTICE =
@@ -75,15 +78,21 @@ export async function searchProperties(context: PropertyAccessContext, input: Pr
 export async function lookupProperty(context: PropertyAccessContext, id: string) {
   try {
     const listing = await getSaleListing(id);
+    const savedResearch = await saveListingResearch(context, listing, SOURCE_NOTICE);
     await writeAudit(context.db, {
       officeId: context.officeId,
       actor: context.actor,
       actorId: context.actorId,
       agentId: context.agentId,
       action: "property.lookup",
-      payload: { provider: "rentcast", listingId: id },
+      payload: { provider: "rentcast", listingId: id, researchId: savedResearch.researchId },
     });
-    return { listing, source: "rentcast" as const, notice: SOURCE_NOTICE };
+    return {
+      listing,
+      source: "rentcast" as const,
+      notice: SOURCE_NOTICE,
+      ...savedResearch,
+    };
   } catch (error) {
     await auditFailure(context, "property.lookup", { listingId: id }, error);
     throw error;
@@ -96,6 +105,8 @@ export async function estimatePropertyValue(
 ) {
   try {
     const estimate = await getPropertyValueEstimate(input);
+    const notice = `${SOURCE_NOTICE} This estimate is not an appraisal or a broker-approved CMA.`;
+    const savedResearch = await saveValuationResearch(context, input, estimate, notice);
     await writeAudit(context.db, {
       officeId: context.officeId,
       actor: context.actor,
@@ -106,15 +117,45 @@ export async function estimatePropertyValue(
         provider: "rentcast",
         address: input.address,
         comparableCount: estimate.comparables.length,
+        researchId: savedResearch.researchId,
       },
     });
     return {
       estimate,
       source: "rentcast" as const,
-      notice: `${SOURCE_NOTICE} This estimate is not an appraisal or a broker-approved CMA.`,
+      notice,
+      ...savedResearch,
     };
   } catch (error) {
     await auditFailure(context, "property.value_estimated", { address: input.address }, error);
     throw error;
   }
+}
+
+export async function preparePropertyCma(
+  context: PropertyAccessContext,
+  input: PropertyValueInput
+) {
+  const result = await estimatePropertyValue(context, input);
+  const cmaPrep = buildCmaPrep(result.estimate);
+  await writeAudit(context.db, {
+    officeId: context.officeId,
+    actor: context.actor,
+    actorId: context.actorId,
+    agentId: context.agentId,
+    action: "property.cma_prepared",
+    payload: {
+      researchId: result.researchId,
+      propertyId: result.propertyId,
+      methodologyVersion: cmaPrep.methodologyVersion,
+      confidenceScore: cmaPrep.confidence.score,
+      includedCount: cmaPrep.counts.included,
+      reviewCount: cmaPrep.counts.review,
+      excludedCount: cmaPrep.counts.excluded,
+    },
+  });
+  return {
+    ...result,
+    cmaPrep,
+  };
 }

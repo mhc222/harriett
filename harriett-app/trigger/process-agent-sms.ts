@@ -2,8 +2,9 @@ import { schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
+import { formatAgentMessageForChannel } from "@/lib/ai/message-format";
 import { runAgentTurn } from "@/lib/ai/runtime";
-import { sendAgentSms, smsDeliveryMode } from "@/lib/sms";
+import { sendAgentMessage, messageDeliveryMode, type AgentMessagingChannel } from "@/lib/sms";
 import type { processAgentMemory } from "@/trigger/process-agent-memory";
 
 export const processAgentSms = schemaTask({
@@ -19,17 +20,18 @@ export const processAgentSms = schemaTask({
     if (inboundError || !inbound) {
       throw new Error(`inbound message ${messageId} not found: ${inboundError?.message}`);
     }
-    if (inbound.direction !== "inbound" || inbound.channel !== "sms") {
-      throw new Error(`message ${messageId} is not an inbound SMS`);
+    const channel = inbound.channel as AgentMessagingChannel;
+    if (inbound.direction !== "inbound" || !["sms", "whatsapp"].includes(channel)) {
+      throw new Error(`message ${messageId} is not an inbound agent message`);
     }
 
-    if (smsDeliveryMode() === "disabled") {
+    if (messageDeliveryMode(channel) === "disabled") {
       await writeAudit(db, {
         officeId: inbound.office_id,
         actor: "system",
         agentId: inbound.agent_id,
         dealId: inbound.deal_id ?? undefined,
-        action: "sms.reply_skipped_disabled",
+        action: `${channel}.reply_skipped_disabled`,
         payload: { inboundMessageId: messageId },
       });
       return { sent: false, reason: "disabled" as const };
@@ -48,7 +50,7 @@ export const processAgentSms = schemaTask({
           agentId: inbound.agent_id,
           messageId,
           aiRunId: inbound.ai_run_id ?? undefined,
-          channel: "sms",
+          channel,
           agentMessage: inbound.body,
           assistantResponse: existingReply.body,
         },
@@ -71,7 +73,7 @@ export const processAgentSms = schemaTask({
       const turn = await runAgentTurn({
         officeId: inbound.office_id,
         agentId: inbound.agent_id,
-        channel: "sms",
+        channel,
         message: inbound.body,
         conversationId: inbound.thread_id ?? undefined,
       }, {
@@ -88,15 +90,17 @@ export const processAgentSms = schemaTask({
         actor: "harriett",
         agentId: inbound.agent_id,
         dealId: inbound.deal_id ?? undefined,
-        action: "sms.reply_generated",
+        action: `${channel}.reply_generated`,
         payload: { inboundMessageId: messageId, aiRunId: turn.runId },
       });
 
-      const sent = await sendAgentSms(db, {
+      const replyBody = formatAgentMessageForChannel(turn.response, channel);
+      const sent = await sendAgentMessage(db, {
         agentId: inbound.agent_id,
+        channel,
         dealId: inbound.deal_id ?? undefined,
         inReplyToId: messageId,
-        body: turn.response,
+        body: replyBody,
       });
       await tasks.trigger<typeof processAgentMemory>(
         "process-agent-memory",
@@ -105,9 +109,9 @@ export const processAgentSms = schemaTask({
           agentId: inbound.agent_id,
           messageId,
           aiRunId: turn.runId,
-          channel: "sms",
+          channel,
           agentMessage: inbound.body,
-          assistantResponse: turn.response,
+          assistantResponse: replyBody,
         },
         {
           idempotencyKey: ["agent-memory", messageId],
@@ -122,7 +126,7 @@ export const processAgentSms = schemaTask({
         actor: "harriett",
         agentId: inbound.agent_id,
         dealId: inbound.deal_id ?? undefined,
-        action: "sms.reply_failed",
+        action: `${channel}.reply_failed`,
         payload: { inboundMessageId: messageId, error: String(error) },
       });
       throw error;

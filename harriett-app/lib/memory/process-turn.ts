@@ -10,7 +10,7 @@ export interface ProcessMemoryTurnInput {
   agentId: string;
   messageId: string;
   aiRunId?: string;
-  channel: "sms" | "pwa";
+  channel: "sms" | "whatsapp" | "pwa";
   agentMessage: string;
   assistantResponse: string;
 }

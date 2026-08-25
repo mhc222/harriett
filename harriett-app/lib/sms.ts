@@ -102,11 +102,37 @@ interface AgentRow {
   sms_consent: string;
 }
 
+export type AgentMessagingChannel = "sms" | "whatsapp";
+
+export function validateAgentMediaUrls(channel: AgentMessagingChannel, mediaUrls?: string[]): string[] {
+  if (!mediaUrls?.length) return [];
+  if (channel !== "whatsapp") {
+    throw new Error("media attachments are currently enabled for WhatsApp only");
+  }
+  if (mediaUrls.length > 10) throw new Error("a WhatsApp message can include at most 10 media URLs");
+  return mediaUrls.map((value) => {
+    const url = new URL(value);
+    if (url.protocol !== "https:") throw new Error("WhatsApp media URLs must use HTTPS");
+    return url.toString();
+  });
+}
+
 export function twilioSendingEnabled(): boolean {
-  return smsDeliveryMode() === "live";
+  return messageDeliveryMode("sms") === "live";
 }
 
 export function smsDeliveryMode(): "disabled" | "dry_run" | "live" {
+  return messageDeliveryMode("sms");
+}
+
+export function messageDeliveryMode(channel: AgentMessagingChannel): "disabled" | "dry_run" | "live" {
+  if (channel === "whatsapp") {
+    const whatsappMode = process.env.WHATSAPP_DELIVERY_MODE;
+    if (whatsappMode === "live" || whatsappMode === "dry_run" || whatsappMode === "disabled") {
+      return whatsappMode;
+    }
+  }
+
   const explicitMode = process.env.SMS_DELIVERY_MODE;
   if (explicitMode === "live" || explicitMode === "dry_run" || explicitMode === "disabled") {
     return explicitMode;
@@ -114,28 +140,33 @@ export function smsDeliveryMode(): "disabled" | "dry_run" | "live" {
   return "dry_run";
 }
 
-function requiredTwilioSendConfig(): {
+function requiredTwilioSendConfig(channel: AgentMessagingChannel): {
   accountSid: string;
   authToken: string;
   fromNumber: string;
   statusCallbackUrl?: string;
 } {
-  if (!twilioSendingEnabled()) {
-    throw new Error("SMS sending is disabled; set SMS_DELIVERY_MODE=live to enable it");
+  if (messageDeliveryMode(channel) !== "live") {
+    throw new Error(`${channel.toUpperCase()} sending is disabled; set its delivery mode to live to enable it`);
   }
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_FROM_NUMBER;
+  const fromNumber = channel === "whatsapp"
+    ? process.env.TWILIO_WHATSAPP_FROM
+    : process.env.TWILIO_FROM_NUMBER;
   if (!accountSid || !authToken || !fromNumber) {
-    throw new Error("Twilio SMS is enabled but its account SID, auth token, or sender number is missing");
+    throw new Error(`Twilio ${channel} is enabled but its account SID, auth token, or sender is missing`);
   }
 
   return {
     accountSid,
     authToken,
     fromNumber,
-    statusCallbackUrl: process.env.TWILIO_STATUS_CALLBACK_URL || undefined,
+    statusCallbackUrl:
+      (channel === "whatsapp"
+        ? process.env.TWILIO_WHATSAPP_STATUS_CALLBACK_URL
+        : process.env.TWILIO_STATUS_CALLBACK_URL) || undefined,
   };
 }
 
@@ -146,9 +177,34 @@ export function assertSendAllowed(agent: AgentRow): void {
   }
 }
 
+function assertAgentMessageAllowed(agent: AgentRow, channel: AgentMessagingChannel): void {
+  if (!agent.phone) throw new Error(`agent ${agent.id} has no phone number`);
+  if (channel === "whatsapp") {
+    if (agent.sms_consent === "opted_out") {
+      throw new Error(`agent ${agent.id} is opted out`);
+    }
+    return;
+  }
+  assertSendAllowed(agent);
+}
+
 export async function sendAgentSms(
   db: SupabaseClient,
   opts: { agentId: string; body: string; dealId?: string; inReplyToId?: string }
+): Promise<{ messageId: string; providerMessageId?: string; dryRun?: boolean }> {
+  return sendAgentMessage(db, { ...opts, channel: "sms" });
+}
+
+export async function sendAgentMessage(
+  db: SupabaseClient,
+  opts: {
+    agentId: string;
+    body: string;
+    channel: AgentMessagingChannel;
+    dealId?: string;
+    inReplyToId?: string;
+    mediaUrls?: string[];
+  }
 ): Promise<{ messageId: string; providerMessageId?: string; dryRun?: boolean }> {
   const { data: agent, error } = await db
     .from("agents")
@@ -157,9 +213,10 @@ export async function sendAgentSms(
     .single();
   if (error || !agent) throw new Error(`agent ${opts.agentId} not found`);
 
-  assertSendAllowed(agent);
-  const deliveryMode = smsDeliveryMode();
-  const twilioConfig = deliveryMode === "live" ? requiredTwilioSendConfig() : null;
+  assertAgentMessageAllowed(agent, opts.channel);
+  const mediaUrls = validateAgentMediaUrls(opts.channel, opts.mediaUrls);
+  const deliveryMode = messageDeliveryMode(opts.channel);
+  const twilioConfig = deliveryMode === "live" ? requiredTwilioSendConfig(opts.channel) : null;
 
   const violation = smsGuardrailViolation(opts.body);
   if (violation) {
@@ -168,10 +225,10 @@ export async function sendAgentSms(
       actor: "harriett",
       agentId: agent.id,
       dealId: opts.dealId,
-      action: "sms.blocked_guardrail",
+      action: `${opts.channel}.blocked_guardrail`,
       payload: { violation, body: opts.body },
     });
-    throw new Error(`sms blocked by content guardrail: ${violation}`);
+    throw new Error(`${opts.channel} blocked by content guardrail: ${violation}`);
   }
 
   let msg: { id: string; provider_message_id: string | null } | null = null;
@@ -198,7 +255,7 @@ export async function sendAgentSms(
         deal_id: opts.dealId ?? null,
         agent_id: agent.id,
         direction: "outbound",
-        channel: "sms",
+        channel: opts.channel,
         body: opts.body,
         consumer_facing: false,
         status: "queued",
@@ -208,6 +265,22 @@ export async function sendAgentSms(
       .single();
     if (msgError || !inserted) throw new Error(`message row failed: ${msgError?.message}`);
     msg = inserted;
+  }
+
+  if (mediaUrls.length) {
+    const { error: attachmentError } = await db.from("message_attachments").upsert(
+      mediaUrls.map((url) => ({
+        office_id: agent.office_id,
+        message_id: msg!.id,
+        kind: "image",
+        source: "external",
+        url,
+      })),
+      { onConflict: "message_id,url" }
+    );
+    if (attachmentError) {
+      throw new Error(`message attachment storage failed: ${attachmentError.message}`);
+    }
   }
 
   if (deliveryMode === "dry_run") {
@@ -220,7 +293,7 @@ export async function sendAgentSms(
       actor: "harriett",
       agentId: agent.id,
       dealId: opts.dealId,
-      action: "sms.dry_run_saved",
+      action: `${opts.channel}.dry_run_saved`,
       payload: { messageId: msg.id },
     });
     return { messageId: msg.id, dryRun: true };
@@ -233,11 +306,23 @@ export async function sendAgentSms(
       actor: "harriett",
       agentId: agent.id,
       dealId: opts.dealId,
-      action: "sms.send_skipped_disabled",
+      action: `${opts.channel}.send_skipped_disabled`,
       payload: { messageId: msg.id },
     });
     return { messageId: msg.id };
   }
+
+  const to = opts.channel === "whatsapp" ? `whatsapp:${agent.phone!}` : agent.phone!;
+
+  const form = new URLSearchParams({
+    To: to,
+    From: twilioConfig!.fromNumber,
+    Body: opts.body,
+    ...(twilioConfig!.statusCallbackUrl
+      ? { StatusCallback: twilioConfig!.statusCallbackUrl }
+      : {}),
+  });
+  mediaUrls.forEach((url) => form.append("MediaUrl", url));
 
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig!.accountSid}/Messages.json`,
@@ -249,14 +334,7 @@ export async function sendAgentSms(
           Buffer.from(`${twilioConfig!.accountSid}:${twilioConfig!.authToken}`).toString("base64"),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        To: agent.phone!,
-        From: twilioConfig!.fromNumber,
-        Body: opts.body,
-        ...(twilioConfig!.statusCallbackUrl
-          ? { StatusCallback: twilioConfig!.statusCallbackUrl }
-          : {}),
-      }),
+      body: form,
     }
   );
 
@@ -268,7 +346,7 @@ export async function sendAgentSms(
       actor: "harriett",
       agentId: agent.id,
       dealId: opts.dealId,
-      action: "sms.failed",
+      action: `${opts.channel}.failed`,
       payload: { messageId: msg.id, status: res.status, detail: detail.slice(0, 500) },
     });
     throw new Error(`twilio send failed (${res.status})`);
@@ -284,8 +362,8 @@ export async function sendAgentSms(
     actor: "harriett",
     agentId: agent.id,
     dealId: opts.dealId,
-    action: "sms.sent",
-    payload: { messageId: msg.id, providerMessageId: twilio.sid },
+    action: `${opts.channel}.sent`,
+    payload: { messageId: msg.id, providerMessageId: twilio.sid, mediaCount: mediaUrls.length },
   });
 
   return { messageId: msg.id, providerMessageId: twilio.sid };

@@ -11,7 +11,7 @@ export const processAgentMemory = schemaTask({
     agentId: PostgresUuidSchema,
     messageId: z.string().uuid(),
     aiRunId: z.string().uuid().optional(),
-    channel: z.enum(["sms", "pwa"]),
+    channel: z.enum(["sms", "whatsapp", "pwa"]),
     agentMessage: z.string().min(1).max(20_000),
     assistantResponse: z.string().min(1).max(20_000),
   }),

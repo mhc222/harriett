@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { PostgresUuidSchema } from "@/lib/contracts/scalars";
 
-export const AgentChannelSchema = z.enum(["sms", "pwa", "email_event", "voice"]);
+export const AgentChannelSchema = z.enum(["sms", "whatsapp", "pwa", "email_event", "voice"]);
 export type AgentChannel = z.infer<typeof AgentChannelSchema>;
 
 export const AttachmentRefSchema = z.object({

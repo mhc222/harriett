@@ -37,12 +37,16 @@ an audit row, no JSON.parse on raw model text, no consumer texting paths.
 | 1-3 | Foundation: identity, audit-writing data layer, parse pipeline, contacts/documents as first-class tables |
 | 3-6 | Channels: Twilio SMS/RCS agents-only (signature validation, opt-outs, drift guardrail), Graph OAuth + inbox detection, Instanet parser |
 | 6-9 | The broker approval queue + dashboard (hero feature; the week-9 demo no competitor can show) |
-| 9-12 | Pre-listing suite, PWA recorder (AI Memo quality bar), per-agent memory and onboarding that persists |
+| 9-12 | Pre-listing suite, including first dedicated CMA skill spike, PWA recorder (AI Memo quality bar), per-agent memory and onboarding that persists |
 | 12-16 | Pilot launch: 5 agents, Claude Projects for Wilson and Tanner, workshop, overwatch digest, hardening |
 
 ## Open items to chase in parallel
 
 - Pilot agent names (2 to 3) from Wilson/Tanner; blocker by week 3 for Graph OAuth
 - Tuscom / Nick Biscoe for M365 admin consent
+- CMA skill research: find strong GitHub/open-source valuation, comp-selection, AVM,
+  geospatial, and report-generation tools before writing our own logic. Goal is a
+  near-term Harriett `cma_prep` skill that orchestrates RentCast now, MLS/CRS later,
+  and always labels pricing as draft agent-facing analysis.
 - Rechat Lucy enterprise pricing (competitive intel before Phase 4 packaging)
 - RCS per-message pricing confirmation before Phase 4 unit economics

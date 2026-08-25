@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
 import type { processAgentSms } from "@/trigger/process-agent-sms";
 import {
+  type AgentMessagingChannel,
   detectConsentIntent,
   twilioSendingEnabled,
   validTwilioSignature,
@@ -12,8 +13,8 @@ import {
   START_CONFIRMATION,
 } from "@/lib/sms";
 
-function twiml(message?: string): NextResponse {
-  const reply = twilioSendingEnabled() ? message : undefined;
+function twiml(message?: string, channel: AgentMessagingChannel = "sms"): NextResponse {
+  const reply = channel === "whatsapp" || twilioSendingEnabled() ? message : undefined;
   const escaped = reply
     ?.replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -26,7 +27,23 @@ function twiml(message?: string): NextResponse {
   return new NextResponse(body, { headers: { "Content-Type": "text/xml" } });
 }
 
-// Inbound SMS webhook. Service client is allowed here (webhook handler),
+function inboundChannel(from: string): AgentMessagingChannel {
+  return from.startsWith("whatsapp:") ? "whatsapp" : "sms";
+}
+
+function phoneFromTwilioAddress(from: string): string {
+  return from.startsWith("whatsapp:") ? from.slice("whatsapp:".length) : from;
+}
+
+function attachmentKind(mimeType: string): "image" | "document" | "audio" | "video" | "other" {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType === "application/pdf") return "document";
+  return "other";
+}
+
+// Inbound Twilio messaging webhook. Service client is allowed here (webhook handler),
 // and every action writes an audit row.
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -42,7 +59,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid signature" }, { status: 403 });
   }
 
-  const from = params.From ?? "";
+  const providerFrom = params.From ?? "";
+  const channel = inboundChannel(providerFrom);
+  const from = phoneFromTwilioAddress(providerFrom);
   const body = params.Body ?? "";
   const db = createServiceClient();
 
@@ -60,11 +79,11 @@ export async function POST(request: Request) {
       await writeAudit(db, {
         officeId: office.id,
         actor: "system",
-        action: "sms.unknown_sender",
-        payload: { from, body: body.slice(0, 200) },
+        action: `${channel}.unknown_sender`,
+        payload: { from, providerFrom, body: body.slice(0, 200) },
       });
     }
-    return twiml();
+    return twiml(undefined, channel);
   }
 
   const consent = detectConsentIntent(body);
@@ -78,6 +97,7 @@ export async function POST(request: Request) {
       office_id: agent.office_id,
       agent_id: agent.id,
       phone: from,
+      channel,
       event: "opt_out",
       method: consent.method,
       evidence: { body },
@@ -90,7 +110,7 @@ export async function POST(request: Request) {
       payload: { method: consent.method },
     });
     // One confirmation message is allowed after an opt-out; then silence.
-    return twiml(STOP_CONFIRMATION);
+    return twiml(STOP_CONFIRMATION, channel);
   }
 
   if (consent?.intent === "opt_in") {
@@ -102,6 +122,7 @@ export async function POST(request: Request) {
       office_id: agent.office_id,
       agent_id: agent.id,
       phone: from,
+      channel,
       event: "opt_in",
       method: consent.method,
       evidence: { body },
@@ -113,7 +134,7 @@ export async function POST(request: Request) {
       action: "consent.opted_in",
       payload: { method: consent.method },
     });
-    return twiml(START_CONFIRMATION);
+    return twiml(START_CONFIRMATION, channel);
   }
 
   if (consent?.intent === "help") {
@@ -121,11 +142,12 @@ export async function POST(request: Request) {
       office_id: agent.office_id,
       agent_id: agent.id,
       phone: from,
+      channel,
       event: "help",
       method: consent.method,
       evidence: { body },
     });
-    return twiml(HELP_RESPONSE);
+    return twiml(HELP_RESPONSE, channel);
   }
 
   // Opted-out senders get silence beyond the one confirmation.
@@ -134,10 +156,10 @@ export async function POST(request: Request) {
       officeId: agent.office_id,
       actor: "system",
       agentId: agent.id,
-      action: "sms.suppressed_opted_out",
+      action: `${channel}.suppressed_opted_out`,
       payload: { body: body.slice(0, 200) },
     });
-    return twiml();
+    return twiml(undefined, channel);
   }
 
   // Ordinary inbound message: store it, then let the durable task generate
@@ -149,7 +171,7 @@ export async function POST(request: Request) {
       office_id: agent.office_id,
       agent_id: agent.id,
       direction: "inbound",
-      channel: "sms",
+      channel,
       body,
       status: "delivered",
       provider_message_id: messageSid,
@@ -170,30 +192,51 @@ export async function POST(request: Request) {
       await tasks.trigger<typeof processAgentSms>(
         "process-agent-sms",
         { messageId: existing.id },
-        { idempotencyKey: ["twilio-inbound", messageSid], idempotencyKeyTTL: "7d" }
+        { idempotencyKey: ["twilio-inbound", channel, messageSid], idempotencyKeyTTL: "7d" }
       );
-      return twiml();
+      return twiml(undefined, channel);
     }
     return NextResponse.json({ error: "message storage failed" }, { status: 500 });
+  }
+
+  const mediaCount = Math.min(Number.parseInt(params.NumMedia ?? "0", 10) || 0, 10);
+  if (mediaCount > 0) {
+    const attachments = Array.from({ length: mediaCount }, (_, index) => {
+      const mimeType = params[`MediaContentType${index}`] ?? "application/octet-stream";
+      return {
+        office_id: agent.office_id,
+        message_id: msg.id,
+        kind: attachmentKind(mimeType),
+        source: "twilio",
+        url: params[`MediaUrl${index}`],
+        mime_type: mimeType,
+      };
+    }).filter((attachment) => Boolean(attachment.url));
+    if (attachments.length) {
+      const { error: attachmentError } = await db.from("message_attachments").insert(attachments);
+      if (attachmentError) {
+        return NextResponse.json({ error: "message attachment storage failed" }, { status: 500 });
+      }
+    }
   }
 
   await writeAudit(db, {
     officeId: agent.office_id,
     actor: "system",
     agentId: agent.id,
-    action: "sms.received",
-    payload: { messageId: msg.id, sid: messageSid },
+    action: `${channel}.received`,
+    payload: { messageId: msg.id, sid: messageSid, mediaCount },
   });
 
   await tasks.trigger<typeof processAgentSms>(
     "process-agent-sms",
     { messageId: msg.id },
     {
-      idempotencyKey: ["twilio-inbound", messageSid ?? msg.id],
+      idempotencyKey: ["twilio-inbound", channel, messageSid ?? msg.id],
       idempotencyKeyTTL: "7d",
       concurrencyKey: agent.id,
     }
   );
 
-  return twiml();
+  return twiml(undefined, channel);
 }

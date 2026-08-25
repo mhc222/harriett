@@ -7,13 +7,15 @@ import type {
 
 export interface ActionPolicyInput extends ApprovalContext {
   risk: SkillRisk;
-  channel?: "sms" | "email" | "calendar" | "contact" | "internal" | "voice";
+  channel?: "sms" | "whatsapp" | "email" | "calendar" | "contact" | "internal" | "voice";
   recipientKind?: RecipientKind;
 }
 
 export function requiredApproval(input: ActionPolicyInput): RequiredApprover | "prohibited" {
   if (input.recipientKind === "consumer" && input.channel === "sms") return "prohibited";
   if (input.recipientKind === "vendor" && input.channel === "sms") return "prohibited";
+  if (input.recipientKind === "consumer" && input.channel === "whatsapp") return "prohibited";
+  if (input.recipientKind === "vendor" && input.channel === "whatsapp") return "prohibited";
   if (input.recipientKind === "consumer" && input.channel === "voice") return "prohibited";
 
   if (input.recipientKind === "consumer") return "broker";

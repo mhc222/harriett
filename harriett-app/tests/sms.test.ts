@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   assertSendAllowed,
   detectConsentIntent,
+  messageDeliveryMode,
+  sendAgentMessage,
   smsDeliveryMode,
   smsGuardrailViolation,
   twilioSendingEnabled,
+  validateAgentMediaUrls,
   validTwilioSignature,
 } from "@/lib/sms";
 
@@ -79,6 +82,23 @@ describe("twilioSendingEnabled", () => {
     if (originalMode === undefined) delete process.env.SMS_DELIVERY_MODE;
     else process.env.SMS_DELIVERY_MODE = originalMode;
   });
+
+  it("lets WhatsApp delivery mode be enabled independently of SMS", () => {
+    const originalSmsMode = process.env.SMS_DELIVERY_MODE;
+    const originalWhatsappMode = process.env.WHATSAPP_DELIVERY_MODE;
+
+    process.env.SMS_DELIVERY_MODE = "disabled";
+    process.env.WHATSAPP_DELIVERY_MODE = "live";
+
+    expect(smsDeliveryMode()).toBe("disabled");
+    expect(messageDeliveryMode("whatsapp")).toBe("live");
+    expect(twilioSendingEnabled()).toBe(false);
+
+    if (originalSmsMode === undefined) delete process.env.SMS_DELIVERY_MODE;
+    else process.env.SMS_DELIVERY_MODE = originalSmsMode;
+    if (originalWhatsappMode === undefined) delete process.env.WHATSAPP_DELIVERY_MODE;
+    else process.env.WHATSAPP_DELIVERY_MODE = originalWhatsappMode;
+  });
 });
 
 describe("detectConsentIntent", () => {
@@ -150,5 +170,76 @@ describe("assertSendAllowed", () => {
 
   it("blocks agents without a phone", () => {
     expect(() => assertSendAllowed({ ...base, phone: null })).toThrow(/no phone/);
+  });
+});
+
+describe("validateAgentMediaUrls", () => {
+  it("allows HTTPS media in WhatsApp", () => {
+    expect(validateAgentMediaUrls("whatsapp", ["https://example.com/property.jpg"])).toEqual([
+      "https://example.com/property.jpg",
+    ]);
+  });
+
+  it("rejects non-HTTPS and SMS media", () => {
+    expect(() => validateAgentMediaUrls("whatsapp", ["http://example.com/property.jpg"])).toThrow(
+      /must use HTTPS/
+    );
+    expect(() => validateAgentMediaUrls("sms", ["https://example.com/property.jpg"])).toThrow(
+      /WhatsApp only/
+    );
+  });
+});
+
+describe("sendAgentMessage channel consent", () => {
+  it("allows WhatsApp sandbox sends for agents who are not opted out", async () => {
+    const db = {
+      from: (table: string) => {
+        if (table === "agents") {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: "agent-1",
+                    office_id: "office-1",
+                    name: "Test",
+                    phone: "+12055551234",
+                    sms_consent: "none",
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "messages") {
+          return {
+            insert: () => ({
+              select: () => ({
+                single: async () => ({ data: { id: "message-1", provider_message_id: null }, error: null }),
+              }),
+            }),
+            update: () => ({ eq: async () => ({ error: null }) }),
+          };
+        }
+        if (table === "audit_log") {
+          return { insert: async () => ({ error: null }) };
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+    };
+    const originalMode = process.env.WHATSAPP_DELIVERY_MODE;
+    process.env.WHATSAPP_DELIVERY_MODE = "disabled";
+
+    await expect(
+      sendAgentMessage(db as never, {
+        agentId: "agent-1",
+        channel: "whatsapp",
+        body: "Test reply",
+      })
+    ).resolves.toEqual({ messageId: "message-1" });
+
+    if (originalMode === undefined) delete process.env.WHATSAPP_DELIVERY_MODE;
+    else process.env.WHATSAPP_DELIVERY_MODE = originalMode;
   });
 });
