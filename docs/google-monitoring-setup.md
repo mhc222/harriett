@@ -59,12 +59,18 @@ GOOGLE_OAUTH_CLIENT_SECRET
 GOOGLE_OAUTH_REDIRECT_URI=https://harriett-app.vercel.app/api/integrations/google/callback
 CONNECTION_ENCRYPTION_KEY
 GOOGLE_GMAIL_PUBSUB_TOPIC=projects/PROJECT_ID/topics/harriett-gmail
+GOOGLE_GMAIL_MONITORED_TO=
 GOOGLE_PUBSUB_AUDIENCE=https://harriett-app.vercel.app/api/webhooks/google/gmail
 GOOGLE_PUBSUB_SERVICE_ACCOUNT=harriett-pubsub-push@PROJECT_ID.iam.gserviceaccount.com
 NEXT_PUBLIC_APP_URL=https://harriett-app.vercel.app
 ```
 
 The Trigger.dev deployment also needs the OAuth client, encryption key, Pub/Sub topic, and app URL. `trigger.config.ts` synchronizes those values from the deployment environment.
+
+For a personal Gmail test account, set `GOOGLE_GMAIL_MONITORED_TO` to a dedicated
+plus alias such as `name+harriett@gmail.com`. Harriett ignores and does not index
+mail addressed anywhere else. Leave it empty only when the connected mailbox is
+dedicated to real estate work.
 
 ## Activate the account
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   decodeGmailPushData,
+  googleMailMatchesRecipients,
   hashGoogleChannelToken,
+  monitoredGmailQuery,
+  monitoredGmailRecipients,
   normalizeGoogleMailMetadata,
 } from "@/lib/google-monitoring";
 
@@ -56,5 +59,16 @@ describe("Google monitoring", () => {
     expect(result.category).toBe("marketing");
     expect(result.priority).toBe("low");
     expect(result.needs_attention).toBe(false);
+  });
+
+  it("only accepts mail addressed to a configured test alias", () => {
+    const allowed = monitoredGmailRecipients("mhc222+harriett@gmail.com");
+    expect(monitoredGmailQuery(allowed)).toBe("to:mhc222+harriett@gmail.com");
+    expect(googleMailMatchesRecipients({
+      payload: { headers: [{ name: "To", value: "Harriett <mhc222+harriett@gmail.com>" }] },
+    }, allowed)).toBe(true);
+    expect(googleMailMatchesRecipients({
+      payload: { headers: [{ name: "To", value: "mhc222@gmail.com" }] },
+    }, allowed)).toBe(false);
   });
 });

@@ -30,6 +30,7 @@ export default defineConfig({
           "GOOGLE_OAUTH_CLIENT_ID",
           "GOOGLE_OAUTH_REDIRECT_URI",
           "GOOGLE_GMAIL_PUBSUB_TOPIC",
+          "GOOGLE_GMAIL_MONITORED_TO",
         ]
           .filter((name) => process.env[name])
           .map((name) => ({ name, value: process.env[name]! })),

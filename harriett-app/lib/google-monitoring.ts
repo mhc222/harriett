@@ -32,6 +32,37 @@ function headerValue(
   return headers?.find((header) => header.name.toLowerCase() === name.toLowerCase())?.value ?? null;
 }
 
+export function monitoredGmailRecipients(value: string | undefined): string[] {
+  if (!value?.trim()) return [];
+  const recipients = [...new Set(value
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean))];
+  return z.array(z.string().email()).min(1).parse(recipients);
+}
+
+export function googleMailMatchesRecipients(
+  message: { payload?: { headers: Array<{ name: string; value: string }> } },
+  allowedRecipients: string[]
+): boolean {
+  if (allowedRecipients.length === 0) return true;
+  const headers = message.payload?.headers;
+  const recipientHeaders = [
+    headerValue(headers, "To"),
+    headerValue(headers, "Cc"),
+  ].filter((value): value is string => Boolean(value));
+  const addresses = recipientHeaders
+    .flatMap((value) => value.match(/[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) ?? [])
+    .map((address) => address.toLowerCase());
+  return allowedRecipients.some((recipient) => addresses.includes(recipient));
+}
+
+export function monitoredGmailQuery(allowedRecipients: string[]): string | undefined {
+  if (allowedRecipients.length === 0) return undefined;
+  if (allowedRecipients.length === 1) return `to:${allowedRecipients[0]}`;
+  return `{${allowedRecipients.map((recipient) => `to:${recipient}`).join(" ")}}`;
+}
+
 function addressList(value: string | null): string[] {
   if (!value) return [];
   return value

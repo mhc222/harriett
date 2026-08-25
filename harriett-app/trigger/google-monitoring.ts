@@ -5,7 +5,13 @@ import { writeAudit } from "@/lib/audit";
 import { getConnectedGoogleAccessTokenById } from "@/lib/connections/google";
 import { PostgresUuidSchema } from "@/lib/contracts/scalars";
 import { createServiceClient } from "@/lib/db/server";
-import { hashGoogleChannelToken, normalizeGoogleMailMetadata } from "@/lib/google-monitoring";
+import {
+  googleMailMatchesRecipients,
+  hashGoogleChannelToken,
+  monitoredGmailQuery,
+  monitoredGmailRecipients,
+  normalizeGoogleMailMetadata,
+} from "@/lib/google-monitoring";
 import {
   getGoogleMessageMetadata,
   listGoogleCalendarEventChanges,
@@ -43,10 +49,16 @@ async function upsertMailMessages(input: {
 }) {
   const { db, connection } = await connectionContext(input.connectionId);
   const accessToken = await getConnectedGoogleAccessTokenById(db, connection.id);
+  const allowedRecipients = monitoredGmailRecipients(process.env.GOOGLE_GMAIL_MONITORED_TO);
   let changed = 0;
+  let ignored = 0;
   for (const messageId of [...new Set(input.messageIds)]) {
     const metadata = await getGoogleMessageMetadata({ accessToken, messageId });
     if (!metadata.labelIds.includes("INBOX")) continue;
+    if (!googleMailMatchesRecipients(metadata, allowedRecipients)) {
+      ignored += 1;
+      continue;
+    }
     const row = {
       office_id: connection.office_id,
       agent_id: connection.agent_id,
@@ -59,7 +71,7 @@ async function upsertMailMessages(input: {
     if (error) throw new Error(`Gmail index write failed: ${error.message}`);
     changed += 1;
   }
-  return { db, connection, accessToken, changed };
+  return { db, connection, accessToken, changed, ignored };
 }
 
 export const syncGoogleMailbox = schemaTask({
@@ -81,14 +93,22 @@ export const syncGoogleMailbox = schemaTask({
     if (subscriptionError) throw new Error(`Gmail subscription lookup failed: ${subscriptionError.message}`);
 
     let changed = 0;
+    let ignored = 0;
     let cursor = subscription?.cursor ?? null;
     if (input.bootstrap || !cursor) {
       const accessToken = await getConnectedGoogleAccessTokenById(db, connection.id);
-      const inbox = await listGoogleInboxMessages({ accessToken, maxResults: 50 });
-      changed = (await upsertMailMessages({
+      const allowedRecipients = monitoredGmailRecipients(process.env.GOOGLE_GMAIL_MONITORED_TO);
+      const inbox = await listGoogleInboxMessages({
+        accessToken,
+        query: monitoredGmailQuery(allowedRecipients),
+        maxResults: 50,
+      });
+      const result = await upsertMailMessages({
         connectionId: connection.id,
         messageIds: inbox.messages.map((message) => message.id),
-      })).changed;
+      });
+      changed = result.changed;
+      ignored = result.ignored;
       cursor = input.notificationHistoryId ?? cursor;
     } else {
       const accessToken = await getConnectedGoogleAccessTokenById(db, connection.id);
@@ -107,14 +127,23 @@ export const syncGoogleMailbox = schemaTask({
           cursor = history.historyId;
           pageToken = history.nextPageToken;
         } while (pageToken);
-        changed = (await upsertMailMessages({ connectionId: connection.id, messageIds })).changed;
+        const result = await upsertMailMessages({ connectionId: connection.id, messageIds });
+        changed = result.changed;
+        ignored = result.ignored;
       } catch (error) {
         if (!(error instanceof GoogleIntegrationError) || error.status !== 404) throw error;
-        const inbox = await listGoogleInboxMessages({ accessToken, maxResults: 50 });
-        changed = (await upsertMailMessages({
+        const allowedRecipients = monitoredGmailRecipients(process.env.GOOGLE_GMAIL_MONITORED_TO);
+        const inbox = await listGoogleInboxMessages({
+          accessToken,
+          query: monitoredGmailQuery(allowedRecipients),
+          maxResults: 50,
+        });
+        const result = await upsertMailMessages({
           connectionId: connection.id,
           messageIds: inbox.messages.map((message) => message.id),
-        })).changed;
+        });
+        changed = result.changed;
+        ignored = result.ignored;
         cursor = input.notificationHistoryId ?? cursor;
       }
     }
@@ -138,9 +167,9 @@ export const syncGoogleMailbox = schemaTask({
       actor: "system",
       agentId: connection.agent_id,
       action: "google.gmail_synced",
-      payload: { connectionId: connection.id, changed, cursor, bootstrap: input.bootstrap },
+      payload: { connectionId: connection.id, changed, ignored, cursor, bootstrap: input.bootstrap },
     });
-    return { changed, cursor };
+    return { changed, ignored, cursor };
   },
 });
 
