@@ -11,6 +11,7 @@ Evidence rules:
 - Preserve material conditions as contractTerms, including financing, earnest money, inspection, appraisal, title, closing, possession, property condition, contingencies, addenda, included or excluded items, and special stipulations.
 - Put every named party and professional in transactionContacts when a role can be identified from the document.
 - For material CRM fields, include fieldEvidence with a short verbatim quote and the one-based PDF page number.
+- Every nonempty CRM fact shown in the response must have fieldEvidence under that exact field name. Address evidence may repeat for city, state, ZIP, and county when the same quotation supports them. If a fact has no visible page evidence, return its absence sentinel instead of asserting it.
 - For each contractTerm, include a verbatim quote and page number when visible. Use low confidence and a null quote when extraction is uncertain.
 - A selected checkbox and an unselected checkbox are different. Do not treat printed boilerplate as an elected term unless the document shows it applies.
 - A signature line does not prove execution unless the relevant signature or execution evidence is present.

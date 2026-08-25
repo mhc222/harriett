@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DealFields } from "@/lib/contracts/deal";
-import { buildCalendarEvents, buildChecklistRows } from "@/lib/deal-events";
+import { buildCalendarEvents, buildChecklistRows, buildStandardChecklist } from "@/lib/deal-events";
 
 const ids = {
   officeId: "00000000-0000-0000-0000-000000000001",
@@ -176,5 +176,24 @@ describe("buildChecklistRows", () => {
       ids
     );
     expect(rows[0].due_date).toBeNull();
+  });
+});
+
+describe("buildStandardChecklist", () => {
+  it("builds the office workflow without a model call", () => {
+    const checklist = buildStandardChecklist(gordo);
+    expect(checklist.items.length).toBeGreaterThanOrEqual(30);
+    expect(checklist.items.some((item) => item.title === "Verify FHA Amendatory Clause")).toBe(true);
+    expect(checklist.items.some((item) => item.title === "Track lead-paint inspection window")).toBe(true);
+    expect(checklist.items.every((item) => item.dueDateAnchor !== undefined)).toBe(true);
+  });
+
+  it("does not add conditional compliance work without a verified flag", () => {
+    const checklist = buildStandardChecklist({
+      ...gordo,
+      flags: { ...gordo.flags, leadPaintDisclosure: false, fhaLoan: false, loanTypeChanged: false },
+    });
+    expect(checklist.items.some((item) => item.title === "Verify FHA Amendatory Clause")).toBe(false);
+    expect(checklist.items.some((item) => item.title === "Track lead-paint inspection window")).toBe(false);
   });
 });

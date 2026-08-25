@@ -8,6 +8,81 @@ interface DealCrmContext {
   agentId: string;
 }
 
+interface EvidenceCandidate {
+  fieldName: string;
+  value: unknown;
+  confidence: number;
+  pageNumber: number;
+  excerpt: string;
+}
+
+interface IndexedPageText {
+  page_number: number;
+  content: string;
+}
+
+function exactExcerpt(content: string, value: string): string | null {
+  const target = value.trim();
+  if (!target) return null;
+  const lower = content.toLowerCase();
+  const index = lower.indexOf(target.toLowerCase());
+  if (index < 0) return null;
+  const lineStart = content.lastIndexOf("\n", index) + 1;
+  const nextLine = content.indexOf("\n", index + target.length);
+  const lineEnd = nextLine < 0 ? content.length : nextLine;
+  const line = content.slice(lineStart, lineEnd).trim();
+  if (line.length <= 600) return line;
+  return content.slice(Math.max(0, index - 180), Math.min(content.length, index + target.length + 180)).trim();
+}
+
+export function deriveVerbatimFieldEvidence(
+  fields: DealFields,
+  explicit: EvidenceCandidate[],
+  pages: IndexedPageText[]
+): EvidenceCandidate[] {
+  const existing = new Set(explicit.map((item) => item.fieldName));
+  const addressEvidence = explicit.find((item) => item.fieldName === "address");
+  const targets: Array<{ fieldName: string; value: unknown }> = [
+    { fieldName: "city", value: fields.city },
+    { fieldName: "state", value: fields.state },
+    { fieldName: "zip", value: fields.zip },
+    { fieldName: "county", value: fields.county },
+    { fieldName: "propertyType", value: fields.propertyType },
+    { fieldName: "listingAgent", value: fields.listingAgent },
+    { fieldName: "buyerAgent", value: fields.buyerAgent },
+  ];
+  const derived: EvidenceCandidate[] = [];
+  for (const target of targets) {
+    if (existing.has(target.fieldName) || typeof target.value !== "string" || !target.value.trim()) continue;
+    if (addressEvidence && ["city", "state", "zip", "county"].includes(target.fieldName)) {
+      const excerpt = exactExcerpt(addressEvidence.excerpt, target.value);
+      if (excerpt) {
+        derived.push({
+          fieldName: target.fieldName,
+          value: target.value,
+          confidence: addressEvidence.confidence,
+          pageNumber: addressEvidence.pageNumber,
+          excerpt: addressEvidence.excerpt,
+        });
+        continue;
+      }
+    }
+    for (const page of pages) {
+      const excerpt = exactExcerpt(page.content, target.value);
+      if (!excerpt) continue;
+      derived.push({
+        fieldName: target.fieldName,
+        value: target.value,
+        confidence: 0.85,
+        pageNumber: page.page_number,
+        excerpt,
+      });
+      break;
+    }
+  }
+  return derived;
+}
+
 export async function upsertContractProperty(
   context: DealCrmContext,
   fields: DealFields
@@ -151,7 +226,7 @@ export async function writeContractEvidence(
   documentId: string,
   fields: DealFields
 ): Promise<number> {
-  const explicit = fields.fieldEvidence.map((item) => ({
+  const explicit: EvidenceCandidate[] = fields.fieldEvidence.map((item) => ({
     fieldName: item.fieldName,
     value: item.value,
     confidence: item.confidence,
@@ -167,7 +242,23 @@ export async function writeContractEvidence(
       pageNumber: term.pageNumber!,
       excerpt: term.quote!,
     }));
-  const rows = [...explicit, ...terms];
+  const { data: indexedPages, error: pageError } = await context.db
+    .from("document_chunks")
+    .select("page_number, content")
+    .eq("document_id", documentId)
+    .order("page_number")
+    .order("chunk_index");
+  if (pageError) throw new Error(`contract evidence page lookup failed: ${pageError.message}`);
+  const derived = deriveVerbatimFieldEvidence(fields, explicit, indexedPages ?? []);
+  const { data: priorRows, error: priorError } = await context.db
+    .from("deal_field_evidence")
+    .select("field_name")
+    .eq("deal_id", dealId)
+    .eq("document_id", documentId)
+    .not("status", "in", '("rejected","superseded")');
+  if (priorError) throw new Error(`contract evidence deduplication failed: ${priorError.message}`);
+  const priorFields = new Set((priorRows ?? []).map((row) => row.field_name));
+  const rows = [...explicit, ...derived, ...terms].filter((item) => !priorFields.has(item.fieldName));
   if (!rows.length) return 0;
   const { error } = await context.db.from("deal_field_evidence").insert(rows.map((item) => ({
     office_id: context.officeId,

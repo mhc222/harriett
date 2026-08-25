@@ -3,13 +3,10 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
 import { parseDealDocument } from "@/lib/ai/parse";
-import { generateStructured } from "@/lib/ai/generate";
-import { CHECKLIST_SYSTEM } from "@/lib/ai/prompts";
-import { ChecklistOutputSchema } from "@/lib/contracts/checklist";
 import {
   buildCalendarEvents,
   buildChecklistRows,
-  checklistPrompt,
+  buildStandardChecklist,
 } from "@/lib/deal-events";
 import { indexDealDocument } from "@/lib/document-index";
 import { reviewTransactionDocument, saveDocumentReview } from "@/lib/document-review";
@@ -84,9 +81,7 @@ export const parseDeal = schemaTask({
       const crmContext = { db, officeId: ids.officeId, agentId: ids.agentId };
       const propertyId = await upsertContractProperty(crmContext, fields);
 
-      const { data: deal, error: dealError } = await db
-        .from("deals")
-        .insert({
+      const dealValues = {
           office_id: ids.officeId,
           agent_id: ids.agentId,
           address: fields.address,
@@ -103,9 +98,11 @@ export const parseDeal = schemaTask({
           parsed_fields: fields,
           property_id: propertyId,
           source: doc.source === "upload" ? "manual" : doc.source,
-        })
-        .select("id")
-        .single();
+      };
+      const dealQuery = doc.deal_id
+        ? db.from("deals").update(dealValues).eq("id", doc.deal_id).select("id").single()
+        : db.from("deals").insert(dealValues).select("id").single();
+      const { data: deal, error: dealError } = await dealQuery;
       if (dealError || !deal) throw new Error(`deal insert failed: ${dealError?.message}`);
       const dealId = deal.id as string;
 
@@ -127,7 +124,7 @@ export const parseDeal = schemaTask({
         actor: "harriett",
         agentId: ids.agentId,
         dealId,
-        action: "deal.created",
+        action: doc.deal_id ? "deal.reprocessed" : "deal.created",
         payload: {
           address: fields.address,
           propertyId,
@@ -178,7 +175,14 @@ export const parseDeal = schemaTask({
 
       const events = buildCalendarEvents(fields, { ...ids, dealId });
       if (events.length > 0) {
-        const { error } = await db.from("calendar_events").insert(events);
+        const { count: existingEventCount, error: existingEventError } = await db
+          .from("calendar_events")
+          .select("id", { count: "exact", head: true })
+          .eq("deal_id", dealId);
+        if (existingEventError) throw new Error(`calendar lookup failed: ${existingEventError.message}`);
+        const { error } = existingEventCount
+          ? { error: null }
+          : await db.from("calendar_events").insert(events);
         if (error) throw new Error(`calendar insert failed: ${error.message}`);
         await writeAudit(db, {
           officeId: ids.officeId,
@@ -190,14 +194,14 @@ export const parseDeal = schemaTask({
         });
       }
 
-      const checklist = await generateStructured({
-        schema: ChecklistOutputSchema,
-        system: CHECKLIST_SYSTEM,
-        content: checklistPrompt(fields),
-        maxOutputTokens: 8192,
-      });
+      const checklist = buildStandardChecklist(fields);
       const rows = buildChecklistRows(checklist, fields, { ...ids, dealId });
-      if (rows.length > 0) {
+      const { count: existingChecklistCount, error: existingChecklistError } = await db
+        .from("checklist_items")
+        .select("id", { count: "exact", head: true })
+        .eq("deal_id", dealId);
+      if (existingChecklistError) throw new Error(`checklist lookup failed: ${existingChecklistError.message}`);
+      if (rows.length > 0 && !existingChecklistCount) {
         const { error } = await db.from("checklist_items").insert(rows);
         if (error) throw new Error(`checklist insert failed: ${error.message}`);
       }
