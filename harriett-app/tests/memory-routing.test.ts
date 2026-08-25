@@ -42,4 +42,17 @@ describe("memory context routing", () => {
     expect(route.useMemoryForPersonalization).toBe(true);
     expect(route.memoryIsAuthoritative).toBe(false);
   });
+
+  it("routes earlier-work questions to retained activity history", () => {
+    const route = routeContext({
+      intent: "history",
+      needsKnowledge: false,
+      needsMemory: false,
+      dealAddressHint: null,
+      requestedMutation: false,
+    });
+
+    expect(route.sources).toEqual(["history"]);
+    expect(sourceAuthority("history")).toBeGreaterThan(sourceAuthority("memory"));
+  });
 });

@@ -18,6 +18,7 @@ describe("agent temporal awareness", () => {
     expect(requiresFirstStepTool("calendar")).toBe(true);
     expect(requiresFirstStepTool("contact")).toBe(true);
     expect(requiresFirstStepTool("email")).toBe(true);
+    expect(requiresFirstStepTool("history")).toBe(true);
     expect(requiresFirstStepTool("approval")).toBe(true);
     expect(requiresFirstStepTool("writing")).toBe(false);
   });

@@ -3,6 +3,7 @@ import type { AgentIntent } from "@/lib/contracts/agent";
 export type ContextSource =
   | "structured"
   | "memory"
+  | "history"
   | "knowledge"
   | "microsoft_graph"
   | "google_workspace"
@@ -25,6 +26,7 @@ const INTENT_SOURCES: Record<AgentIntent["intent"], ContextSource[]> = {
   email: ["google_workspace"],
   checklist: ["structured"],
   memory: ["memory"],
+  history: ["history"],
   approval: ["structured"],
   other: [],
 };
@@ -58,6 +60,8 @@ export function sourceAuthority(source: ContextSource): number {
       return 90;
     case "property_provider":
       return 80;
+    case "history":
+      return 70;
     case "memory":
       return 30;
   }
