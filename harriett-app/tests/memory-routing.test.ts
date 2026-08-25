@@ -55,4 +55,17 @@ describe("memory context routing", () => {
     expect(route.sources).toEqual(["history"]);
     expect(sourceAuthority("history")).toBeGreaterThan(sourceAuthority("memory"));
   });
+
+  it("routes reminders and to-dos to durable tasks", () => {
+    const route = routeContext({
+      intent: "task",
+      needsKnowledge: false,
+      needsMemory: false,
+      dealAddressHint: null,
+      requestedMutation: true,
+    });
+
+    expect(route.sources).toEqual(["tasks"]);
+    expect(sourceAuthority("tasks")).toBeGreaterThan(sourceAuthority("memory"));
+  });
 });

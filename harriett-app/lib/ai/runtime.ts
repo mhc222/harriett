@@ -76,7 +76,7 @@ export function renderTemporalContext(now: Date, timeZone: string): string {
 }
 
 export function requiresFirstStepTool(intent: string): boolean {
-  return ["calendar", "contact", "email", "history", "approval"].includes(intent);
+  return ["calendar", "contact", "email", "task", "history", "approval"].includes(intent);
 }
 
 interface ContinuityMessage {
@@ -171,6 +171,9 @@ Evidence rules:
 - For requests to draft or send email, create or change calendar events, or manage contacts, use proposeGoogleAction with the exact payload. Do not claim the action happened until its approval and execution status says completed.
 - Use findGoogleFreeTime for availability questions and searchGoogleContacts before editing or deleting a contact.
 - For questions about prior conversations, decisions, or work from yesterday or earlier, use searchAgentHistory. Do not guess from a few recent messages.
+- For to-dos and reminders, use the persistent task tools. Never claim a task or reminder was saved unless the tool confirms it. Resolve reminder times to an exact ISO timestamp with an offset from the current time context. Use the agent's wording in the task title.
+- A reminder is a message delivered at a future time. A due date is when the work should be finished. They may be different, so do not invent one from the other.
+- For appointments and calendar events, use Google Calendar tools and the approval flow. Do not substitute a personal task for a requested calendar event.
 - When the user approves or rejects a pending action, list pending actions if needed, then use decideGoogleAction. Never infer approval from silence or an unrelated reply.
 - Never invent a dollar adjustment. If local market support is unavailable, say the adjustment is unresolved.
 

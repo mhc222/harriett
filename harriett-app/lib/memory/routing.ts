@@ -4,6 +4,7 @@ export type ContextSource =
   | "structured"
   | "memory"
   | "history"
+  | "tasks"
   | "knowledge"
   | "microsoft_graph"
   | "google_workspace"
@@ -25,6 +26,7 @@ const INTENT_SOURCES: Record<AgentIntent["intent"], ContextSource[]> = {
   contact: ["google_workspace"],
   email: ["google_workspace"],
   checklist: ["structured"],
+  task: ["tasks"],
   memory: ["memory"],
   history: ["history"],
   approval: ["structured"],
@@ -52,6 +54,7 @@ export function routeContext(intent: AgentIntent): ContextRoute {
 export function sourceAuthority(source: ContextSource): number {
   switch (source) {
     case "structured":
+    case "tasks":
       return 100;
     case "microsoft_graph":
     case "google_workspace":
