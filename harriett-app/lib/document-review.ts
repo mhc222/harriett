@@ -6,6 +6,45 @@ import {
 } from "@/lib/contracts/document-review";
 import { TRANSACTION_DOCUMENT_RULES } from "@/lib/transaction-document-rules";
 
+export interface PrimaryDocumentClassification {
+  ruleKey: string;
+  title: string;
+  coarseDocumentType: "listing_agreement" | "purchase_agreement" | "net_sheet" | "disclosure" | "settlement" | "other";
+  confidence: number;
+}
+
+const familyPriority: Record<string, number> = {
+  transaction_contract: 100,
+  brokerage_agreement: 90,
+  settlement: 80,
+  financial_estimate: 70,
+  contract_addendum: 60,
+  brokerage_disclosure: 50,
+  property_disclosure: 40,
+  property_record: 30,
+  internal_workflow: 20,
+};
+
+export function classifyDocumentPacket(review: DocumentPacketReview): PrimaryDocumentClassification | null {
+  const catalog = new Map(TRANSACTION_DOCUMENT_RULES.map((rule) => [rule.key, rule]));
+  const candidates = review.documents.flatMap((item) => {
+    const rule = catalog.get(item.ruleKey);
+    return rule ? [{ item, rule }] : [];
+  });
+  candidates.sort((left, right) => {
+    const priority = (familyPriority[right.rule.family] ?? 0) - (familyPriority[left.rule.family] ?? 0);
+    return priority || right.item.confidence - left.item.confidence;
+  });
+  const primary = candidates[0];
+  if (!primary || primary.item.confidence < 0.6) return null;
+  return {
+    ruleKey: primary.rule.key,
+    title: primary.rule.title,
+    coarseDocumentType: primary.rule.coarseDocumentType,
+    confidence: primary.item.confidence,
+  };
+}
+
 function ruleCatalog(): string {
   return TRANSACTION_DOCUMENT_RULES.map((rule) => [
     `KEY: ${rule.key}`,
@@ -53,8 +92,9 @@ export async function saveDocumentReview(
     documentId: string;
     review: DocumentPacketReview;
   }
-): Promise<number> {
-  if (!input.review.documents.length) return 0;
+): Promise<{ count: number; primary: PrimaryDocumentClassification | null }> {
+  const primary = classifyDocumentPacket(input.review);
+  if (!input.review.documents.length) return { count: 0, primary };
   const rows = input.review.documents.map((item) => ({
     office_id: input.officeId,
     agent_id: input.agentId,
@@ -72,5 +112,16 @@ export async function saveDocumentReview(
     onConflict: "document_id,rule_key",
   });
   if (error) throw new Error(`document review write failed: ${error.message}`);
-  return rows.length;
+  if (primary) {
+    const { error: classificationError } = await db
+      .from("documents")
+      .update({
+        document_type_key: primary.ruleKey,
+        doc_type: primary.coarseDocumentType,
+      })
+      .eq("id", input.documentId)
+      .eq("office_id", input.officeId);
+    if (classificationError) throw new Error(`document classification write failed: ${classificationError.message}`);
+  }
+  return { count: rows.length, primary };
 }

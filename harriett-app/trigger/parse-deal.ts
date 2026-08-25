@@ -138,7 +138,7 @@ export const parseDeal = schemaTask({
 
       try {
         const documentReview = await reviewTransactionDocument(pdf);
-        const reviewCount = await saveDocumentReview(db, {
+        const reviewResult = await saveDocumentReview(db, {
           officeId: ids.officeId,
           agentId: ids.agentId,
           dealId,
@@ -153,7 +153,8 @@ export const parseDeal = schemaTask({
           action: "document.reviewed",
           payload: {
             documentId,
-            reviewCount,
+            reviewCount: reviewResult.count,
+            primaryClassification: reviewResult.primary,
             statuses: documentReview.documents.map((item) => ({
               ruleKey: item.ruleKey,
               status: item.status,

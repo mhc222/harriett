@@ -1856,6 +1856,29 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+.automatic-detection-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: var(--space-md);
+  color: var(--green);
+}
+
+.automatic-detection-note strong {
+  display: block;
+  font-size: 0.8125rem;
+}
+
+.automatic-detection-note p {
+  padding-top: 0.125rem;
+  color: var(--ink-mid);
+  font-size: 0.75rem;
+}
+
 .form-error {
   border-left: 2px solid var(--crimson);
   padding-left: var(--space-sm);

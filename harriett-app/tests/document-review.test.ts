@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DocumentPacketReviewSchema } from "@/lib/contracts/document-review";
+import { classifyDocumentPacket } from "@/lib/document-review";
 
 describe("document packet review contract", () => {
   it("accepts a conservative incomplete review with page evidence", () => {
@@ -27,5 +28,40 @@ describe("document packet review contract", () => {
       }],
     });
     expect(parsed.success).toBe(false);
+  });
+
+  it("classifies a combined packet from its primary transaction form", () => {
+    const review = DocumentPacketReviewSchema.parse({
+      documents: [
+        {
+          ruleKey: "federal_lead_based_paint_disclosure",
+          status: "appears_complete",
+          pages: [9],
+          confidence: 0.98,
+        },
+        {
+          ruleKey: "al_general_financed_purchase_agreement",
+          status: "needs_review",
+          pages: [1, 2, 3, 4, 5, 6, 7, 8],
+          confidence: 0.93,
+        },
+      ],
+    });
+    expect(classifyDocumentPacket(review)).toMatchObject({
+      ruleKey: "al_general_financed_purchase_agreement",
+      coarseDocumentType: "purchase_agreement",
+    });
+  });
+
+  it("keeps low-confidence identification unknown", () => {
+    const review = DocumentPacketReviewSchema.parse({
+      documents: [{
+        ruleKey: "al_general_financed_purchase_agreement",
+        status: "unreadable",
+        pages: [1],
+        confidence: 0.41,
+      }],
+    });
+    expect(classifyDocumentPacket(review)).toBeNull();
   });
 });

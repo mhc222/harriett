@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, X } from "lucide-react";
+import { FileSearch2, FileUp, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -38,7 +38,7 @@ export function ContractUpload() {
               <div>
                 <p className="eyebrow">Transaction intake</p>
                 <h2 id="upload-title">Review a transaction PDF</h2>
-                <p>Harriett will extract the facts, keep page evidence, inspect the packet, and build the dates and checklist.</p>
+                <p>Harriett will identify the document, extract the facts, keep page evidence, inspect the packet, and build the dates and checklist.</p>
               </div>
               <button type="button" className="icon-button" onClick={() => setOpen(false)} disabled={submitting} aria-label="Close upload">
                 <X size={19} />
@@ -48,16 +48,10 @@ export function ContractUpload() {
               <label htmlFor="contract-file">PDF document</label>
               <input ref={inputRef} id="contract-file" name="file" type="file" accept="application/pdf" required disabled={submitting} />
               <p className="field-helper">Maximum 20 MB. The original stays private to the office.</p>
-
-              <label htmlFor="contract-type">What kind of document is this?</label>
-              <select id="contract-type" name="docType" defaultValue="purchase_agreement" disabled={submitting}>
-                <option value="purchase_agreement">Purchase agreement or contract packet</option>
-                <option value="listing_agreement">Listing agreement or listing packet</option>
-                <option value="disclosure">Disclosure or addendum</option>
-                <option value="net_sheet">Estimated closing statement or net sheet</option>
-                <option value="settlement">Settlement or closing document</option>
-                <option value="other">Other transaction document</option>
-              </select>
+              <div className="automatic-detection-note">
+                <FileSearch2 size={19} aria-hidden="true" />
+                <div><strong>No document type needed.</strong><p>Harriett reads the pages and identifies the contract, disclosure, addendum, closing document, or combined packet from the document itself.</p></div>
+              </div>
               {error && <p className="form-error" role="alert">{error}</p>}
               <div className="review-modal-actions">
                 <button type="button" className="secondary-button" onClick={() => setOpen(false)} disabled={submitting}>Cancel</button>

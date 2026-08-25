@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { tasks } from "@trigger.dev/sdk";
 import { createUserClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
 import type { parseDeal } from "@/trigger/parse-deal";
 
 const MAX_BYTES = 20 * 1024 * 1024;
-
-const MetaSchema = z.object({
-  docType: z
-    .enum(["listing_agreement", "purchase_agreement", "net_sheet", "disclosure", "settlement", "other"])
-    .default("other"),
-});
 
 export async function POST(request: Request) {
   const db = await createUserClient();
@@ -36,11 +29,6 @@ export async function POST(request: Request) {
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "file exceeds 20MB" }, { status: 400 });
   }
-  const parsedMeta = MetaSchema.safeParse({ docType: form.get("docType") ?? undefined });
-  if (!parsedMeta.success) {
-    return NextResponse.json({ error: parsedMeta.error.message }, { status: 400 });
-  }
-
   const storagePath = `${meta.office_id}/${crypto.randomUUID()}.pdf`;
   const { error: uploadError } = await db.storage
     .from("documents")
@@ -57,7 +45,7 @@ export async function POST(request: Request) {
       storage_path: storagePath,
       filename: file.name,
       mime_type: file.type,
-      doc_type: parsedMeta.data.docType,
+      doc_type: "other",
       source: "upload",
     })
     .select("id")
@@ -72,7 +60,7 @@ export async function POST(request: Request) {
     actorId: user.id,
     agentId: meta.agent_id,
     action: "document.uploaded",
-    payload: { documentId: doc.id, filename: file.name, docType: parsedMeta.data.docType },
+    payload: { documentId: doc.id, filename: file.name, documentType: "pending_automatic_classification" },
   });
 
   const run = await tasks.trigger<typeof parseDeal>("parse-deal", { documentId: doc.id });
