@@ -235,13 +235,54 @@ export async function POST(request: Request) {
     payload: { messageId: msg.id, sid: messageSid, mediaCount },
   });
 
-  const acknowledgement = processingAcknowledgement(body);
+  const acknowledgementCooldownStart = new Date(Date.now() - 90_000).toISOString();
+  const acknowledgementHistoryStart = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data: acknowledgementHistory, error: acknowledgementLookupError } = await db
+    .from("audit_log")
+    .select("payload, created_at")
+    .eq("office_id", agent.office_id)
+    .eq("agent_id", agent.id)
+    .eq("action", `${channel}.processing_acknowledgement_decided`)
+    .gte("created_at", acknowledgementHistoryStart)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (acknowledgementLookupError) {
+    return NextResponse.json({ error: "acknowledgement history unavailable" }, { status: 503 });
+  }
+  const priorDecisions = (acknowledgementHistory ?? []).map((entry) => ({
+    createdAt: entry.created_at,
+    payload: entry.payload && typeof entry.payload === "object"
+      ? entry.payload as Record<string, unknown>
+      : null,
+  }));
+  const lastSentDecision = priorDecisions.find((entry) => entry.payload?.sent === true);
+  const previousMessage = typeof lastSentDecision?.payload?.message === "string"
+    ? lastSentDecision.payload.message
+    : null;
+  const recentlyAcknowledged = priorDecisions.some((entry) => (
+    entry.createdAt >= acknowledgementCooldownStart && entry.payload?.sent === true
+  ));
+  const acknowledgement = processingAcknowledgement({
+    body,
+    seed: messageSid ?? msg.id,
+    hasAttachments: mediaCount > 0,
+    recentlyAcknowledged,
+    previousMessage,
+  });
   await writeAudit(db, {
     officeId: agent.office_id,
     actor: "harriett",
     agentId: agent.id,
-    action: `${channel}.processing_acknowledged`,
-    payload: { inboundMessageId: msg.id, body: acknowledgement, delivery: "twiml" },
+    action: `${channel}.processing_acknowledgement_decided`,
+    payload: {
+      inboundMessageId: msg.id,
+      sent: acknowledgement.message !== null,
+      message: acknowledgement.message,
+      category: acknowledgement.category,
+      reason: acknowledgement.reason,
+      delivery: acknowledgement.message ? "twiml" : null,
+      cooldownSeconds: 90,
+    },
   });
 
   await tasks.trigger<typeof processAgentSms>(
@@ -254,5 +295,5 @@ export async function POST(request: Request) {
     }
   );
 
-  return twiml(acknowledgement, channel);
+  return twiml(acknowledgement.message ?? undefined, channel);
 }

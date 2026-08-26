@@ -356,18 +356,21 @@ export async function runAgentTurn(
   const runId = run.id as string;
 
   try {
-    const intent = await classifyAgentIntent(input.message);
+    const continuity = await loadRecentContinuity(db, input);
+    const intent = await classifyAgentIntent(
+      input.message,
+      continuity.map((message) => `${message.direction === "inbound" ? "Agent" : "Harriett"}: ${message.body}`)
+    );
     const route = routeContext(intent);
     await db.from("ai_runs").update({ intent: intent.intent }).eq("id", runId);
 
     const memoryProvider = new SupabaseMemoryProvider(db);
-    const [memories, knowledge, messages, continuity] = await Promise.all([
+    const [memories, knowledge, messages] = await Promise.all([
       memoryProvider.search(input.officeId, input.agentId, input.message, 5),
       route.sources.includes("knowledge")
         ? searchKnowledge({ db, officeId: input.officeId, query: input.message, limit: 5 })
         : Promise.resolve([]),
       loadRecentMessages(db, input),
-      loadRecentContinuity(db, input),
     ]);
 
     const retrievalRows = [

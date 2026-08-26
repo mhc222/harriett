@@ -29,4 +29,20 @@ describe("contract evidence routing", () => {
     expect(enforceEvidenceRouting("Make a Facebook post for Woodbank Ridge", base))
       .toMatchObject({ intent: "social", needsMemory: true, requestedMutation: true });
   });
+
+  it("carries Facebook intent into a short human follow-up", () => {
+    expect(enforceEvidenceRouting(
+      "New listing.",
+      base,
+      ["Agent: Make a Facebook post for Woodbank Ridge", "Harriett: Which kind of post?"]
+    )).toMatchObject({ intent: "social", needsMemory: true, requestedMutation: true });
+  });
+
+  it("does not carry social intent into an explicit unrelated request", () => {
+    expect(enforceEvidenceRouting(
+      "Email the new listing packet.",
+      base,
+      ["Agent: Make a Facebook post for Woodbank Ridge"]
+    )).toEqual(base);
+  });
 });

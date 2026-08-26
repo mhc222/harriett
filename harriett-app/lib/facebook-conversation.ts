@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { writeAudit } from "@/lib/audit";
+import { createFacebookDraft, SocialPostTypeSchema } from "@/lib/social-drafts";
+
+type SocialPostType = z.infer<typeof SocialPostTypeSchema>;
 
 const DraftContentSchema = z.object({
   provider: z.literal("facebook"),
@@ -26,6 +29,68 @@ export interface ConversationalFacebookApproval {
   pageName: string;
   status: string;
   existingPermalink: string | null;
+}
+
+function normalizedWords(value: string): string[] {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 2 || /^\d+$/.test(word));
+}
+
+function postTypeForRequest(message: string, status: string): SocialPostType {
+  if (/\bopen house\b/i.test(message)) return "open_house";
+  if (/\b(?:under contract|pending)\b/i.test(message)) return "under_contract";
+  if (/\b(?:just sold|sold|closed)\b/i.test(message)) return "just_sold";
+  if (/\bmarket update\b/i.test(message)) return "market_update";
+  if (/\bnew listing\b/i.test(message)) return "new_listing";
+  if (status === "closed") return "just_sold";
+  if (status === "under_contract") return "under_contract";
+  return "new_listing";
+}
+
+export async function createFacebookDraftFromConversation(input: {
+  db: SupabaseClient;
+  officeId: string;
+  agentId: string;
+  message: string;
+}) {
+  const { data: deals, error } = await input.db
+    .from("deals")
+    .select("id,address,city,status,updated_at")
+    .eq("office_id", input.officeId)
+    .eq("agent_id", input.agentId)
+    .not("status", "in", "(cancelled)")
+    .order("updated_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(`Facebook transaction lookup failed: ${error.message}`);
+  if (!deals?.length) throw new Error("I could not find an active transaction for this Facebook post.");
+
+  const messageWords = new Set(normalizedWords(input.message));
+  const scored = deals.map((deal) => {
+    const addressWords = normalizedWords(`${deal.address} ${deal.city ?? ""}`);
+    const score = addressWords.reduce((total, word) => total + (messageWords.has(word) ? (/^\d+$/.test(word) ? 4 : 1) : 0), 0);
+    return { deal, score };
+  }).sort((left, right) => right.score - left.score);
+  const best = scored[0];
+  const second = scored[1];
+  const explicitMatch = best && best.score >= 2 && (!second || best.score > second.score);
+  const latestListing = /\b(?:latest|new|active) listing\b/i.test(input.message)
+    ? deals.find((deal) => deal.status === "listing_active")
+    : null;
+  const selected = explicitMatch ? best.deal : latestListing ?? (deals.length === 1 ? deals[0] : null);
+  if (!selected) {
+    const choices = deals.slice(0, 3).map((deal) => deal.address).join(", ");
+    throw new Error(`I found more than one possible transaction. Tell me which property you mean: ${choices}.`);
+  }
+
+  return createFacebookDraft({
+    db: input.db,
+    officeId: input.officeId,
+    agentId: input.agentId,
+    actor: "harriett",
+    proposalSource: "whatsapp_request",
+    postType: postTypeForRequest(input.message, selected.status),
+    shareMode: "link_preview",
+    dealId: selected.id,
+  });
 }
 
 export async function approveLatestFacebookDraftFromConversation(input: {

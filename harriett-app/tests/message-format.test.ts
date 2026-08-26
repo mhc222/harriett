@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isFacebookDraftCommand,
   isFacebookPublishApproval,
   processingAcknowledgement,
 } from "@/lib/ai/message-format";
@@ -42,10 +43,39 @@ describe("formatAgentMessageForChannel", () => {
     expect(isFacebookPublishApproval("What did I post yesterday?")).toBe(false);
   });
 
+  it("recognizes explicit Facebook draft commands", () => {
+    expect(isFacebookDraftCommand("Make a Facebook post for Woodbank Ridge")).toBe(true);
+    expect(isFacebookDraftCommand("Draft social media copy for my new listing")).toBe(true);
+    expect(isFacebookDraftCommand("What did I post yesterday?")).toBe(false);
+    expect(isFacebookDraftCommand("post it")).toBe(false);
+  });
+
   it("returns deterministic progress copy without a model call", () => {
-    expect(processingAcknowledgement("Make a Facebook post for Woodbank Ridge"))
-      .toContain("working on that");
-    expect(processingAcknowledgement("post it"))
-      .toContain("checking that draft");
+    expect(processingAcknowledgement({ body: "Make a Facebook post for Woodbank Ridge", seed: "one" }))
+      .toMatchObject({ category: "facebook_draft", reason: "long_task" });
+    expect(processingAcknowledgement({ body: "post it", seed: "two" }))
+      .toMatchObject({ category: "facebook_publish", reason: "long_task" });
+  });
+
+  it("skips progress chatter for quick conversation and recent back-and-forth", () => {
+    expect(processingAcknowledgement({ body: "What time is closing?" }))
+      .toEqual({ message: null, category: null, reason: "quick_task" });
+    expect(processingAcknowledgement({
+      body: "Make a Facebook post for Woodbank Ridge",
+      recentlyAcknowledged: true,
+    })).toMatchObject({ message: null, reason: "recent_acknowledgement" });
+  });
+
+  it("does not repeat the previous acknowledgement", () => {
+    const first = processingAcknowledgement({
+      body: "Research current mortgage rates",
+      seed: "same",
+    });
+    const second = processingAcknowledgement({
+      body: "Research current mortgage rates",
+      seed: "same",
+      previousMessage: first.message,
+    });
+    expect(second.message).not.toBe(first.message);
   });
 });

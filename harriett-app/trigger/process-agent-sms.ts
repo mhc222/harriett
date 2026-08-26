@@ -5,10 +5,14 @@ import { writeAudit } from "@/lib/audit";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isFacebookDraftCommand,
   isFacebookPublishApproval,
 } from "@/lib/ai/message-format";
 import { runAgentTurn } from "@/lib/ai/runtime";
-import { approveLatestFacebookDraftFromConversation } from "@/lib/facebook-conversation";
+import {
+  approveLatestFacebookDraftFromConversation,
+  createFacebookDraftFromConversation,
+} from "@/lib/facebook-conversation";
 import { sendAgentMessage, messageDeliveryMode, type AgentMessagingChannel } from "@/lib/sms";
 import {
   completeWorkflowTrace,
@@ -28,6 +32,7 @@ const FacebookDraftSkillOutputSchema = z.object({
 
 const FacebookPublishResultSchema = z.object({
   permalinkUrl: z.string().url().optional(),
+  verificationStatus: z.enum(["graph_confirmed", "not_visible", "unverified"]).optional(),
 }).passthrough();
 
 async function facebookDraftForRun(db: ReturnType<typeof createServiceClient>, aiRunId: string) {
@@ -147,6 +152,7 @@ export const processAgentSms = schemaTask({
             agentId: inbound.agent_id,
           });
           let permalink = approval.existingPermalink;
+          let verificationStatus: "graph_confirmed" | "not_visible" | "unverified" | undefined;
           if (approval.status !== "completed") {
             const published = await tasks.triggerAndWait<typeof executeFacebookAction>(
               "execute-facebook-action",
@@ -156,10 +162,11 @@ export const processAgentSms = schemaTask({
             if (!published.ok) throw new Error("Meta did not confirm the Facebook post");
             const parsed = FacebookPublishResultSchema.safeParse(published.output);
             permalink = parsed.success ? parsed.data.permalinkUrl ?? permalink : permalink;
+            verificationStatus = parsed.success ? parsed.data.verificationStatus : undefined;
           }
-          const replyBody = permalink
-            ? `Posted to ${approval.pageName}.\n\n${permalink}`
-            : `Facebook confirmed the post to ${approval.pageName}. You can find it in Recent posts in Harriett.`;
+          const replyBody = verificationStatus === "graph_confirmed" && permalink
+            ? `Facebook confirmed the post on ${approval.pageName}.\n\n${permalink}`
+            : `Meta accepted the post to ${approval.pageName}, but I could not confirm that it is visible yet. Check Recent posts in Harriett before sharing it.`;
           const sent = await sendAgentMessage(db, {
             agentId: inbound.agent_id,
             channel,
@@ -180,6 +187,7 @@ export const processAgentSms = schemaTask({
               artifactId: approval.artifactId,
               pageName: approval.pageName,
               permalink,
+              verificationStatus,
             },
           });
           await completeWorkflowTrace(db, inbound.office_id, workflow.id, {
@@ -219,6 +227,89 @@ export const processAgentSms = schemaTask({
             outcome: "facebook_publish_failed",
           });
           return { sent: true, ...sent, facebookPublished: false, workflowRunId: workflow.id };
+        }
+      }
+
+      if (isFacebookDraftCommand(inbound.body)) {
+        try {
+          await recordWorkflowEvent(db, inbound.office_id, workflow.id, "facebook.draft_started", {
+            inboundMessageId: messageId,
+            channel,
+          });
+          const draft = await createFacebookDraftFromConversation({
+            db,
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+            message: inbound.body,
+          });
+          const replyBody = formatFacebookDraftForWhatsApp(draft);
+          const mediaUrls = draft.primaryImageUrl ? [draft.primaryImageUrl] : undefined;
+          const sent = await sendAgentMessage(db, {
+            agentId: inbound.agent_id,
+            channel,
+            dealId: inbound.deal_id ?? undefined,
+            inReplyToId: messageId,
+            body: replyBody,
+            mediaUrls,
+          });
+          replySent = true;
+          await writeAudit(db, {
+            officeId: inbound.office_id,
+            actor: "harriett",
+            agentId: inbound.agent_id,
+            dealId: inbound.deal_id ?? undefined,
+            action: "facebook.draft_created_by_message",
+            payload: {
+              inboundMessageId: messageId,
+              artifactId: draft.artifactId,
+              outboundMessageId: sent.messageId,
+              channel,
+              generationMode: draft.generationMode,
+            },
+          });
+          await recordWorkflowEvent(db, inbound.office_id, workflow.id, "facebook.draft_sent", {
+            inboundMessageId: messageId,
+            artifactId: draft.artifactId,
+            outboundMessageId: sent.messageId,
+            providerMessageId: sent.providerMessageId ?? null,
+            mediaCount: mediaUrls?.length ?? 0,
+          });
+          await completeWorkflowTrace(db, inbound.office_id, workflow.id, {
+            inboundMessageId: messageId,
+            channel,
+            artifactId: draft.artifactId,
+            outboundMessageId: sent.messageId,
+            outcome: "facebook_draft_created",
+          });
+          return { sent: true, ...sent, facebookDraftCreated: true, artifactId: draft.artifactId, workflowRunId: workflow.id };
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "I could not create that Facebook draft.";
+          const safeDetail = /^(I could not find|I found more than one|this property|choose a transaction|agent profile)/i.test(detail)
+            ? detail
+            : "I could not create that Facebook draft. Your transaction data is still safe.";
+          const sent = await sendAgentMessage(db, {
+            agentId: inbound.agent_id,
+            channel,
+            dealId: inbound.deal_id ?? undefined,
+            inReplyToId: messageId,
+            body: safeDetail,
+          });
+          replySent = true;
+          await writeAudit(db, {
+            officeId: inbound.office_id,
+            actor: "harriett",
+            agentId: inbound.agent_id,
+            dealId: inbound.deal_id ?? undefined,
+            action: "facebook.draft_by_message_failed",
+            payload: { inboundMessageId: messageId, error: detail },
+          });
+          await failWorkflowTrace(db, inbound.office_id, workflow.id, error, {
+            inboundMessageId: messageId,
+            channel,
+            outboundMessageId: sent.messageId,
+            outcome: "facebook_draft_failed",
+          });
+          return { sent: true, ...sent, facebookDraftCreated: false, workflowRunId: workflow.id };
         }
       }
 

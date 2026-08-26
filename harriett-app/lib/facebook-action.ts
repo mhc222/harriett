@@ -131,6 +131,7 @@ export async function executeFacebookPublish(actionRequestId: string) {
       page_name: page.name,
       external_post_id: published.postId,
       external_permalink: published.permalinkUrl,
+      external_verification_status: published.verificationStatus,
       image_url: payload.imageUrl,
       published_at: completedAt,
     };
@@ -142,7 +143,12 @@ export async function executeFacebookPublish(actionRequestId: string) {
     }).eq("id", artifact.id).eq("agent_id", action.agent_id);
     if (artifactUpdateError) throw new Error(`published post could not be recorded: ${artifactUpdateError.message}`);
 
-    const output = { postId: published.postId, permalinkUrl: published.permalinkUrl, artifactId: artifact.id };
+    const output = {
+      postId: published.postId,
+      permalinkUrl: published.permalinkUrl,
+      verificationStatus: published.verificationStatus,
+      artifactId: artifact.id,
+    };
     const { error: completionError } = await db.from("action_requests").update({
       status: "completed",
       execution_output: output,

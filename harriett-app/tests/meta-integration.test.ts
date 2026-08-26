@@ -102,7 +102,12 @@ describe("Meta integration", () => {
     configureMeta();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: "123456789_987" }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ permalink_url: "https://www.facebook.com/123456789/posts/987" }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "123456789_987",
+        permalink_url: "https://www.facebook.com/123456789/posts/987",
+        is_published: true,
+        is_hidden: false,
+      }), { status: 200 }));
 
     const result = await publishFacebookPagePost({
       page,
@@ -113,6 +118,7 @@ describe("Meta integration", () => {
     expect(result).toEqual({
       postId: "123456789_987",
       permalinkUrl: "https://www.facebook.com/123456789/posts/987",
+      verificationStatus: "graph_confirmed",
     });
     const [requestUrl, requestInit] = fetchMock.mock.calls[0];
     expect(String(requestUrl)).toContain("/v25.0/123456789/feed");
@@ -130,7 +136,10 @@ describe("Meta integration", () => {
         post_id: "123456789_654",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "123456789_654",
         permalink_url: "https://www.facebook.com/123456789/posts/654",
+        is_published: true,
+        is_hidden: false,
       }), { status: 200 }));
 
     await expect(publishFacebookPagePost({
@@ -140,6 +149,7 @@ describe("Meta integration", () => {
     })).resolves.toEqual({
       postId: "123456789_654",
       permalinkUrl: "https://www.facebook.com/123456789/posts/654",
+      verificationStatus: "graph_confirmed",
     });
 
     const [requestUrl, requestInit] = fetchMock.mock.calls[0];
@@ -158,6 +168,7 @@ describe("Meta integration", () => {
     await expect(publishFacebookPagePost({ page, message: "Approved post." })).resolves.toEqual({
       postId: "123456789_987",
       permalinkUrl: null,
+      verificationStatus: "unverified",
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

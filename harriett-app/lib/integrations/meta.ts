@@ -247,7 +247,11 @@ export async function publishFacebookPagePost(input: {
   message: string;
   link?: string;
   imageUrl?: string;
-}): Promise<{ postId: string; permalinkUrl: string | null }> {
+}): Promise<{
+  postId: string;
+  permalinkUrl: string | null;
+  verificationStatus: "graph_confirmed" | "not_visible" | "unverified";
+}> {
   const message = z.string().trim().min(1).max(63_206).parse(input.message);
   const link = input.link ? z.string().url().parse(input.link) : undefined;
   const imageUrl = input.imageUrl ? z.string().url().parse(input.imageUrl) : undefined;
@@ -255,6 +259,7 @@ export async function publishFacebookPagePost(input: {
   const body = new URLSearchParams(imageUrl
     ? { caption: message, url: imageUrl, published: "true" }
     : { message });
+  body.set("published", "true");
   if (link && !imageUrl) body.set("link", link);
   const created = z.object({
     id: z.string().min(1),
@@ -266,18 +271,29 @@ export async function publishFacebookPagePost(input: {
   ));
   const postId = created.post_id ?? created.id;
   let permalinkUrl: string | null = null;
+  let verificationStatus: "graph_confirmed" | "not_visible" | "unverified" = "unverified";
   try {
-    const details = z.object({ permalink_url: z.string().url().optional() }).safeParse(await metaRequest(
+    const details = z.object({
+      id: z.string().min(1),
+      permalink_url: z.string().url().optional(),
+      is_published: z.boolean(),
+      is_hidden: z.boolean(),
+    }).safeParse(await metaRequest(
       `/${encodeURIComponent(postId)}`,
       input.page.accessToken,
       undefined,
-      { fields: "permalink_url" },
+      { fields: "id,permalink_url,is_published,is_hidden" },
     ));
     permalinkUrl = details.success ? details.data.permalink_url ?? null : null;
+    verificationStatus = details.success
+      ? details.data.is_published && !details.data.is_hidden
+        ? "graph_confirmed"
+        : "not_visible"
+      : "unverified";
   } catch {
     // The post already exists at this point. A missing permalink must not cause a retry.
   }
-  return { postId, permalinkUrl };
+  return { postId, permalinkUrl, verificationStatus };
 }
 
 export async function deleteFacebookPagePost(input: {
