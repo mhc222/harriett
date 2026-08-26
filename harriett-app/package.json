@@ -15,10 +15,11 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.37",
     "@ai-sdk/openai": "^4.0.37",
+    "@ai-sdk/react": "4.0.62",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "@trigger.dev/sdk": "^4.5.10",
-    "ai": "^7.0.59",
+    "ai": "7.0.59",
     "google-auth-library": "^11.0.2",
     "lucide-react": "^1.34.0",
     "mem0ai": "^3.1.6",

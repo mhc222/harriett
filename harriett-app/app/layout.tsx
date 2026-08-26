@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
 import { Libre_Caslon_Display, Source_Sans_3 } from "next/font/google";
+import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 const sourceSans = Source_Sans_3({
@@ -20,6 +21,15 @@ export const metadata: Metadata = {
     template: "%s",
   },
   description: "Transaction assistant for Pritchett-Moore Real Estate",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Harriett",
+  },
+  icons: {
+    apple: "/icons/harriett-192.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,7 +45,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${sourceSans.variable} ${libreCaslon.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

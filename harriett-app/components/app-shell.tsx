@@ -14,6 +14,7 @@ import {
   Home,
   LogOut,
   Menu,
+  MessageCircle,
   PenLine,
   PlugZap,
   Search,
@@ -34,6 +35,7 @@ interface AppShellProps {
 
 const primaryNavigation = [
   { label: "Today", href: "/", icon: Home },
+  { label: "Harriett", href: "/chat", icon: MessageCircle },
   { label: "Pipeline", href: "/pipeline", icon: BriefcaseBusiness },
   { label: "Contacts", href: "/contacts", icon: ContactRound },
   { label: "Research", href: "/research", icon: Search },
@@ -189,7 +191,7 @@ export function AppShell({ children, agentName, officeName, role }: AppShellProp
           {[
             primaryNavigation[0],
             primaryNavigation[1],
-            primaryNavigation[3],
+            primaryNavigation[2],
           ].map((item) => {
             const Icon = item.icon;
             const active = activePath(pathname, item.href);

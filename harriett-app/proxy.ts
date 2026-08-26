@@ -33,6 +33,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/auth") ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
     pathname === "/sms" ||
     pathname.startsWith("/sms-terms") ||
     pathname.startsWith("/privacy") ||
