@@ -3,6 +3,10 @@ import { tasks } from "@trigger.dev/sdk";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
 import { processingAcknowledgement } from "@/lib/ai/message-format";
+import {
+  conversationFastLaneEnabled,
+  tryDeterministicConversationTurn,
+} from "@/lib/conversation-gateway";
 import type { processAgentSms } from "@/trigger/process-agent-sms";
 import {
   type AgentMessagingChannel,
@@ -234,6 +238,36 @@ export async function POST(request: Request) {
     action: `${channel}.received`,
     payload: { messageId: msg.id, sid: messageSid, mediaCount },
   });
+
+  // The new conversation runtime is opt-in until migration 0033 is applied
+  // and the deterministic lane has passed production pilot checks. Any
+  // failure falls through to the existing durable task. sendAgentMessage()
+  // enforces one reply per inbound message, so the fallback cannot duplicate
+  // a provider-accepted response.
+  if (conversationFastLaneEnabled() && mediaCount === 0) {
+    try {
+      const deterministic = await tryDeterministicConversationTurn(db, {
+        officeId: agent.office_id,
+        agentId: agent.id,
+        inboundMessageId: msg.id,
+        providerMessageId: messageSid ?? undefined,
+        channel,
+        body,
+      });
+      if (deterministic) return twiml(undefined, channel);
+    } catch (error) {
+      await writeAudit(db, {
+        officeId: agent.office_id,
+        actor: "harriett",
+        agentId: agent.id,
+        action: `${channel}.deterministic_reply_fell_back`,
+        payload: {
+          inboundMessageId: msg.id,
+          error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+        },
+      });
+    }
+  }
 
   const acknowledgementCooldownStart = new Date(Date.now() - 90_000).toISOString();
   const acknowledgementHistoryStart = new Date(Date.now() - 10 * 60_000).toISOString();

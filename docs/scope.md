@@ -222,7 +222,9 @@ are embedded here.
     only, so no approval queue or A2P gate applies. Scope addition from the June 8 call.
     Decision (Matt, 2026-06-08): folded into the Phase 2 build at the current $31,800 price,
     not a separate line item. A light version of it is demoed in Phase 1.
-  - Text and email outbound via GoHighLevel with A2P 10DLC registration.
+  - Agent SMS and RCS via Twilio direct. Pritchett-Moore's A2P 10DLC registration was
+    approved on 2026-08-26. Consumer-facing communication remains broker-approved email
+    sent through Microsoft Graph from the agent's account.
   - Broker approval queue for all consumer-facing messages.
   - Admin dashboard for Wilson and Tanner.
 - AI Enablement Kickstart:
@@ -265,9 +267,9 @@ APIs. The brain decides what to do; GHL delivers the words.
 - Integrations: Microsoft Graph SDK (inbox, calendar, contacts); dotloop API in Phase 3.
 - Comms & ops: GoHighLevel.
 
-Portability is a hard constraint. Capabilities live in our code, not capped by what GHL can
-do. If we migrate off GHL, the brain does not change. Keep every decision multi-tenant so
-the build productizes for other brokerages without a single-tenant rewrite.
+Portability is a hard constraint. Capabilities live in our code rather than a messaging
+provider's workflow builder. Keep every decision multi-tenant so the build productizes for
+other brokerages without a single-tenant rewrite.
 
 ## Compliance guardrails
 
@@ -278,7 +280,8 @@ $20M, Lamb v. Mortgage One, Lowrey v. OpenAI).
 - Broker approval queue before any consumer-facing message goes out.
 - Per-agent opt-in/opt-out. Outbound configurable per agent (see Phase 2).
 - Vendor data is agent-gated. No cross-agent sharing, ever.
-- A2P 10DLC registration for all SMS. AI disclosure at the start of every voice call.
+- A2P 10DLC registration for all SMS. Pritchett-Moore's registration was approved on
+  2026-08-26. AI disclosure remains required at the start of every voice call.
 - Voice scope: inbound from agents and outbound to vendors only. No consumer outbound voice
   (TCPA risk) until Phase 4+ with proper consent capture.
 - RECAD agency disclosure reviewed on every draft. Reflect Alabama rules (buyer-beware:
@@ -318,8 +321,8 @@ for disclosure compliance checks.
 These appear in the 604 2nd St NW file. Not universal to all agents, but real starting data
 for vendor map work.
 
-- Title: North River Title, Inc. / Brittany Newton — (205) 345-5310
-- Lender: First Federal Bank ISAOA — 1300 McFarland Blvd NE, Tuscaloosa
+- Title: North River Title, Inc. / Brittany Newton, (205) 345-5310
+- Lender: First Federal Bank ISAOA, 1300 McFarland Blvd NE, Tuscaloosa
 - Appraiser: Randolph Appraisals, Inc.
 - Deed prep: Robert S. Plott LLC
 - Homeowner's insurance: Orion 180
