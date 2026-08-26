@@ -45,4 +45,29 @@ describe("contract evidence routing", () => {
       ["Agent: Make a Facebook post for Woodbank Ridge"]
     )).toEqual(base);
   });
+
+  it.each([
+    "What listings do I have?",
+    "Show me my active listings.",
+    "List my pending deals.",
+    "What transactions do I have?",
+    "Pull my pending files.",
+  ])("routes the authenticated agent's portfolio through internal deals: %s", (message) => {
+    expect(enforceEvidenceRouting(message, {
+      ...base,
+      intent: "property_research",
+      needsKnowledge: true,
+      needsMemory: true,
+    })).toMatchObject({
+      intent: "deal_lookup",
+      needsKnowledge: false,
+      needsMemory: false,
+      requestedMutation: false,
+    });
+  });
+
+  it("keeps listing-agreement completeness questions on the document path", () => {
+    expect(enforceEvidenceRouting("Which of my listing agreements are incomplete?", base))
+      .toMatchObject({ intent: "document_lookup", needsKnowledge: true });
+  });
 });

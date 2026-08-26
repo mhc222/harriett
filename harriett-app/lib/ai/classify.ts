@@ -7,10 +7,12 @@ Use deal_lookup or checklist for operational transaction facts. Use document_loo
 
 needsMemory means personal context would materially improve the response. It does not mean memory can prove a deal, policy, email, calendar, contact, or property fact. needsKnowledge means published office or regulatory evidence is needed. requestedMutation is true for any request to create, update, delete, send, save, remember, forget, approve, reject, assign, or complete something.`;
 
-const PACKET_RULE_REQUEST = /\b(packet|contract|agreement|addendum|disclosure|closing document|transaction document|form)\b[\s\S]{0,120}\b(missing|required|applicable|complete|completeness|signed|consistent|need|needs)\b|\b(missing|required|applicable|complete|completeness|signed|consistent)\b[\s\S]{0,120}\b(packet|contract|agreement|addendum|disclosure|closing document|transaction document|form)\b/i;
+const PACKET_RULE_REQUEST = /\b(packet|contracts?|agreements?|addendum|addenda|disclosures?|closing documents?|transaction documents?|forms?)\b[\s\S]{0,120}\b(missing|required|applicable|complete|incomplete|completeness|signed|consistent|need|needs)\b|\b(missing|required|applicable|complete|incomplete|completeness|signed|consistent)\b[\s\S]{0,120}\b(packet|contracts?|agreements?|addendum|addenda|disclosures?|closing documents?|transaction documents?|forms?)\b/i;
 const SOCIAL_REQUEST = /\b(facebook|social(?: media)?)(?:\s+(?:post|caption|draft))?\b/i;
 const SOCIAL_FOLLOWUP = /^(?:a\s+)?(?:new listing|open house|under contract|pending|just sold|sold|closed)(?:\s+(?:post|one))?[.!?]*$/i;
 const EXPLICIT_OTHER_DOMAIN = /\b(email|gmail|calendar|appointment|contact|task|reminder|contract|document|form|inspection|closing|web|google|search online)\b/i;
+const AGENT_DEAL_PORTFOLIO_REQUEST =
+  /\b(?:what|which)\s+(?:(?:active|current|pending|closed)\s+)?(?:listings?|deals?|transactions?)\s+do\s+i\s+have\b|\b(?:what|which)\s+pending\s+files?\s+do\s+i\s+have\b|\b(?:show|list|pull|give)\s+(?:me\s+)?my\s+(?:(?:active|current|pending|closed)\s+)?(?:listings?|deals?|transactions?)\b|\b(?:show|list|pull|give)\s+(?:me\s+)?my\s+pending\s+files?\b|\bmy\s+(?:(?:active|current|pending|closed)\s+)?(?:listings?|deals?|transactions?|pending\s+files?)\b/i;
 
 export function enforceEvidenceRouting(
   message: string,
@@ -36,12 +38,23 @@ export function enforceEvidenceRouting(
       requestedMutation: true,
     };
   }
-  if (!PACKET_RULE_REQUEST.test(message)) return intent;
-  return {
-    ...intent,
-    intent: "document_lookup",
-    needsKnowledge: true,
-  };
+  if (PACKET_RULE_REQUEST.test(message)) {
+    return {
+      ...intent,
+      intent: "document_lookup",
+      needsKnowledge: true,
+    };
+  }
+  if (AGENT_DEAL_PORTFOLIO_REQUEST.test(message)) {
+    return {
+      ...intent,
+      intent: "deal_lookup",
+      needsKnowledge: false,
+      needsMemory: false,
+      requestedMutation: false,
+    };
+  }
+  return intent;
 }
 
 export async function classifyAgentIntent(
