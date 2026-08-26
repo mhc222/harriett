@@ -61,6 +61,10 @@ describe("formatAgentMessageForChannel", () => {
   it("returns deterministic progress copy without a model call", () => {
     expect(processingAcknowledgement({ body: "Make a Facebook post for Woodbank Ridge", seed: "one" }))
       .toMatchObject({ category: "facebook_draft", reason: "long_task" });
+    expect(processingAcknowledgement({
+      body: "Can you make a Facebook listing for Woodbank? New listing",
+      seed: "listing-wording",
+    })).toMatchObject({ category: "facebook_draft", reason: "long_task" });
     expect(processingAcknowledgement({ body: "post it", seed: "two" }))
       .toMatchObject({ category: "facebook_publish", reason: "long_task" });
   });

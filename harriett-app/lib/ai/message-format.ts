@@ -60,7 +60,7 @@ export function isFacebookPublishApproval(body: string): boolean {
 export function isFacebookDraftCommand(body: string): boolean {
   return /\b(?:facebook|social(?: media)?)\b/i.test(body)
     && /\b(?:create|draft|make|prepare|write|generate)\b/i.test(body)
-    && /\b(?:post|caption|copy)\b/i.test(body);
+    && /\b(?:post|caption|copy|listing)\b/i.test(body);
 }
 
 export function isFacebookDeleteCommand(body: string, hasRecentFacebookPostContext = false): boolean {
@@ -81,29 +81,29 @@ export interface ProcessingAcknowledgementDecision {
 
 const ACKNOWLEDGEMENTS: Record<ProcessingCategory, string[]> = {
   facebook_publish: [
-    "I’m sending that to Facebook now. I’ll bring you the live link when Meta confirms it.",
-    "I’ve got it. I’m posting the approved draft and waiting on Facebook’s confirmation.",
-    "On it. I’ll send the Facebook link here as soon as the post is live.",
+    "Yep, I’m posting it now. I’ll send you the Facebook link as soon as it’s live.",
+    "I’ve got it. Give me a minute to post it, and I’ll bring the live link back here.",
+    "On it. I’ll send you the Facebook link once the post is live.",
   ],
   facebook_draft: [
-    "I’m pulling the listing details and putting that Facebook post together now.",
-    "On it. I’m checking the property facts before I draft the Facebook post.",
-    "Let me get that Facebook post together. I’ll bring the draft back here for your review.",
+    "Yep, give me a minute. I’ll check the listing and get that Facebook post over to you.",
+    "Sure, let me pull the listing details. I’ll send the Facebook draft back here in a minute.",
+    "I’ve got it. Give me a minute to check the property and put the post together.",
   ],
   document_review: [
-    "Let me review the transaction record and documents. I’ll bring back what I find.",
-    "I’m checking the documents and transaction details now. I’ll report back here.",
-    "I’ve got it. Let me work through the file and verify the details.",
+    "Sure, give me a minute to check the file. I’ll send you what I find.",
+    "Let me look through the documents and transaction details. I’ll get back to you here.",
+    "I’ve got it. Give me a minute to work through the file and check the details.",
   ],
   research: [
-    "Let me check the current sources and pull that together for you.",
-    "I’m looking into that now. I’ll bring you the useful part when it’s ready.",
-    "On it. Let me verify the current information before I answer.",
+    "Sure, give me a minute to look into that. I’ll send you what I find.",
+    "Let me check that for you. I’ll get back to you here in a minute.",
+    "On it. I’m checking the current information before I answer.",
   ],
   artifact: [
-    "I’m putting that together now. I’ll send it here when it’s ready.",
-    "I’ve got it. Give me a moment to work through the details.",
-    "Let me build that for you. I’ll bring the finished draft back here.",
+    "Sure, give me a minute to put that together. I’ll send it back here.",
+    "I’ve got it. Let me work through the details, and I’ll get it over to you.",
+    "Let me put that together for you. I’ll send the finished draft back here.",
   ],
 };
 

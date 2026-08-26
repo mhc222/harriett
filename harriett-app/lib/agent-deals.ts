@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { PublicListingMetadataSchema } from "@/lib/integrations/pritchett-moore";
 
 export const AgentDealSearchInputSchema = z.object({
   query: z.string().trim().max(200).optional(),
@@ -18,6 +19,8 @@ export const AgentDealSearchOutputSchema = z.object({
     salePrice: z.number().nullable(),
     contractAcceptanceDate: z.string().nullable(),
     closingDate: z.string().nullable(),
+    publicListingUrl: z.string().url().nullable(),
+    primaryImageUrl: z.string().url().nullable(),
   })),
 });
 export type AgentDealSearchOutput = z.infer<typeof AgentDealSearchOutputSchema>;
@@ -31,7 +34,7 @@ export async function searchAgentDeals(
   const input = AgentDealSearchInputSchema.parse(rawInput);
   let query = db
     .from("deals")
-    .select("id, address, city, status, list_price, sale_price, contract_acceptance_date, closing_date")
+    .select("id, address, city, status, list_price, sale_price, contract_acceptance_date, closing_date, properties(facts)")
     .eq("office_id", context.officeId)
     .eq("agent_id", context.agentId)
     .order("updated_at", { ascending: false })
@@ -41,16 +44,25 @@ export async function searchAgentDeals(
   const { data, error } = await query;
   if (error) throw new Error(`deal search failed: ${error.message}`);
   return AgentDealSearchOutputSchema.parse({
-    deals: (data ?? []).map((deal) => ({
-      id: deal.id,
-      address: deal.address,
-      city: deal.city,
-      status: deal.status,
-      listPrice: deal.list_price == null ? null : Number(deal.list_price),
-      salePrice: deal.sale_price == null ? null : Number(deal.sale_price),
-      contractAcceptanceDate: deal.contract_acceptance_date,
-      closingDate: deal.closing_date,
-    })),
+    deals: (data ?? []).map((deal) => {
+      const property = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
+      const facts = z.object({ facts: z.record(z.string(), z.unknown()) }).safeParse(property);
+      const listing = PublicListingMetadataSchema.safeParse(
+        facts.success ? facts.data.facts.publicListing : null,
+      );
+      return {
+        id: deal.id,
+        address: deal.address,
+        city: deal.city,
+        status: deal.status,
+        listPrice: deal.list_price == null ? null : Number(deal.list_price),
+        salePrice: deal.sale_price == null ? null : Number(deal.sale_price),
+        contractAcceptanceDate: deal.contract_acceptance_date,
+        closingDate: deal.closing_date,
+        publicListingUrl: listing.success ? listing.data.url : null,
+        primaryImageUrl: listing.success ? listing.data.primaryImageUrl : null,
+      };
+    }),
   });
 }
 

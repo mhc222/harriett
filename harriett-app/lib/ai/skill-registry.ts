@@ -81,7 +81,7 @@ async function runSkill<I, O>(
 const searchDealsSkill = defineSkill({
   name: "search_deals",
   version: "1.0.0",
-  description: "Find the agent's active or historical deals by address or status.",
+  description: "Find the agent's active or historical deals by address or status, including the verified official listing URL and primary listing image when available.",
   inputSchema: AgentDealSearchInputSchema,
   outputSchema: AgentDealSearchOutputSchema,
   risk: "read" as SkillRisk,

@@ -13,6 +13,8 @@ describe("formatAgentDealPortfolio", () => {
         salePrice: null,
         contractAcceptanceDate: null,
         closingDate: null,
+        publicListingUrl: "https://www.pritchett-moore.com/properties/175589/details",
+        primaryImageUrl: null,
       },
       {
         id: "22222222-2222-4222-8222-222222222222",
@@ -23,6 +25,8 @@ describe("formatAgentDealPortfolio", () => {
         salePrice: 208_000,
         contractAcceptanceDate: "2026-04-30",
         closingDate: "2026-06-05",
+        publicListingUrl: null,
+        primaryImageUrl: null,
       },
     ], new Date("2026-08-26T12:00:00Z"));
 
