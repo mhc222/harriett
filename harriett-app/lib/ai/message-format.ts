@@ -63,6 +63,14 @@ export function isFacebookDraftCommand(body: string): boolean {
     && /\b(?:post|caption|copy)\b/i.test(body);
 }
 
+export function isFacebookDeleteCommand(body: string, hasRecentFacebookPostContext = false): boolean {
+  const normalized = body.trim().replace(/[.!]+$/, "").trim();
+  const explicit = /\b(?:delete|remove)\b[\s\S]{0,40}\b(?:facebook|post)\b|\b(?:take|pull)\b[\s\S]{0,20}\b(?:facebook|post)\b[\s\S]{0,20}\bdown\b|\b(?:facebook|post)\b[\s\S]{0,40}\b(?:delete|remove)\b/i.test(normalized);
+  if (explicit) return true;
+  return hasRecentFacebookPostContext
+    && /^(?:please\s+)?(?:delete|remove)\s+(?:it|that|this)|^(?:please\s+)?(?:take|pull)\s+(?:it|that|this)\s+down$/i.test(normalized);
+}
+
 type ProcessingCategory = "facebook_publish" | "facebook_draft" | "document_review" | "research" | "artifact";
 
 export interface ProcessingAcknowledgementDecision {

@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isFacebookDeleteCommand,
   isFacebookDraftCommand,
   isFacebookPublishApproval,
 } from "@/lib/ai/message-format";
@@ -12,6 +13,7 @@ import { runAgentTurn } from "@/lib/ai/runtime";
 import {
   approveLatestFacebookDraftFromConversation,
   createFacebookDraftFromConversation,
+  deleteLatestFacebookPostFromConversation,
 } from "@/lib/facebook-conversation";
 import { sendAgentMessage, messageDeliveryMode, type AgentMessagingChannel } from "@/lib/sms";
 import {
@@ -33,6 +35,11 @@ const FacebookDraftSkillOutputSchema = z.object({
 const FacebookPublishResultSchema = z.object({
   permalinkUrl: z.string().url().optional(),
   verificationStatus: z.enum(["graph_confirmed", "not_visible", "unverified"]).optional(),
+}).passthrough();
+
+const FacebookDeleteResultSchema = z.object({
+  deleted: z.boolean().optional(),
+  alreadyDeleted: z.boolean().optional(),
 }).passthrough();
 
 async function facebookDraftForRun(db: ReturnType<typeof createServiceClient>, aiRunId: string) {
@@ -142,6 +149,107 @@ export const processAgentSms = schemaTask({
           duplicate: true,
           workflowRunId: workflow.id,
         };
+      }
+
+      const { data: lastOutbound } = await db
+        .from("messages")
+        .select("body,created_at")
+        .eq("office_id", inbound.office_id)
+        .eq("agent_id", inbound.agent_id)
+        .eq("direction", "outbound")
+        .in("channel", ["sms", "whatsapp"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const recentFacebookPostContext = Boolean(
+        lastOutbound
+        && Date.now() - new Date(lastOutbound.created_at).getTime() <= 30 * 60_000
+        && /Facebook confirmed the post|facebook\.com\//i.test(lastOutbound.body)
+      );
+
+      if (isFacebookDeleteCommand(inbound.body, recentFacebookPostContext)) {
+        try {
+          const deletion = await deleteLatestFacebookPostFromConversation({
+            db,
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+          });
+          if (deletion.status !== "completed") {
+            const deleted = await tasks.triggerAndWait<typeof executeFacebookAction>(
+              "execute-facebook-action",
+              { actionRequestId: deletion.actionRequestId, action: "delete" },
+              { idempotencyKey: ["facebook-delete", deletion.actionRequestId], idempotencyKeyTTL: "30d" },
+            );
+            const deletionResult = deleted.ok
+              ? FacebookDeleteResultSchema.safeParse(deleted.output)
+              : null;
+            if (
+              !deleted.ok
+              || !deletionResult?.success
+              || (!deletionResult.data.deleted && !deletionResult.data.alreadyDeleted)
+            ) {
+              throw new Error("Meta did not confirm the Facebook deletion");
+            }
+          }
+          const sent = await sendAgentMessage(db, {
+            agentId: inbound.agent_id,
+            channel,
+            dealId: inbound.deal_id ?? undefined,
+            inReplyToId: messageId,
+            body: `Deleted from ${deletion.pageName}. Facebook confirmed the post is no longer live.`,
+          });
+          replySent = true;
+          await writeAudit(db, {
+            officeId: inbound.office_id,
+            actor: "harriett",
+            agentId: inbound.agent_id,
+            dealId: inbound.deal_id ?? undefined,
+            action: "facebook.delete_confirmed_by_message",
+            payload: {
+              inboundMessageId: messageId,
+              actionRequestId: deletion.actionRequestId,
+              artifactId: deletion.artifactId,
+              postId: deletion.postId,
+              outboundMessageId: sent.messageId,
+            },
+          });
+          await completeWorkflowTrace(db, inbound.office_id, workflow.id, {
+            inboundMessageId: messageId,
+            channel,
+            actionRequestId: deletion.actionRequestId,
+            outboundMessageId: sent.messageId,
+            outcome: "facebook_deleted",
+          });
+          return { sent: true, ...sent, facebookDeleted: true, workflowRunId: workflow.id };
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "Facebook did not confirm the deletion.";
+          const safeDetail = /^(I could not find|Facebook is not connected|The Facebook deletion)/.test(detail)
+            ? detail
+            : "Facebook did not confirm the deletion. The post remains in Harriett so you can try again.";
+          const sent = await sendAgentMessage(db, {
+            agentId: inbound.agent_id,
+            channel,
+            dealId: inbound.deal_id ?? undefined,
+            inReplyToId: messageId,
+            body: safeDetail,
+          });
+          replySent = true;
+          await writeAudit(db, {
+            officeId: inbound.office_id,
+            actor: "harriett",
+            agentId: inbound.agent_id,
+            dealId: inbound.deal_id ?? undefined,
+            action: "facebook.delete_by_message_failed",
+            payload: { inboundMessageId: messageId, error: detail },
+          });
+          await failWorkflowTrace(db, inbound.office_id, workflow.id, error, {
+            inboundMessageId: messageId,
+            channel,
+            outboundMessageId: sent.messageId,
+            outcome: "facebook_delete_failed",
+          });
+          return { sent: true, ...sent, facebookDeleted: false, workflowRunId: workflow.id };
+        }
       }
 
       if (isFacebookPublishApproval(inbound.body)) {

@@ -14,6 +14,15 @@ const DraftContentSchema = z.object({
   external_permalink: z.string().url().nullable().optional(),
 }).passthrough();
 
+const PublishedFacebookContentSchema = z.object({
+  provider: z.literal("facebook"),
+  publish_status: z.literal("published"),
+  connection_id: z.string().uuid(),
+  page_id: z.string().min(1),
+  page_name: z.string().min(1),
+  external_post_id: z.string().min(1),
+}).passthrough();
+
 const ConnectionCapabilitiesSchema = z.object({
   selected_page_id: z.string().min(1),
   pages: z.array(z.object({
@@ -29,6 +38,15 @@ export interface ConversationalFacebookApproval {
   pageName: string;
   status: string;
   existingPermalink: string | null;
+}
+
+export interface ConversationalFacebookDeletion {
+  actionRequestId: string;
+  artifactId: string;
+  title: string;
+  pageName: string;
+  postId: string;
+  status: string;
 }
 
 function normalizedWords(value: string): string[] {
@@ -91,6 +109,112 @@ export async function createFacebookDraftFromConversation(input: {
     shareMode: "link_preview",
     dealId: selected.id,
   });
+}
+
+export async function deleteLatestFacebookPostFromConversation(input: {
+  db: SupabaseClient;
+  officeId: string;
+  agentId: string;
+}): Promise<ConversationalFacebookDeletion> {
+  const { data: artifacts, error: artifactError } = await input.db
+    .from("artifacts")
+    .select("id,title,deal_id,status,content,updated_at")
+    .eq("office_id", input.officeId)
+    .eq("agent_id", input.agentId)
+    .eq("kind", "social_post")
+    .eq("status", "published")
+    .order("updated_at", { ascending: false })
+    .limit(10);
+  if (artifactError) throw new Error(`Facebook post lookup failed: ${artifactError.message}`);
+  const match = (artifacts ?? []).map((artifact) => ({
+    artifact,
+    content: PublishedFacebookContentSchema.safeParse(artifact.content),
+  })).find((candidate) => candidate.content.success);
+  if (!match || !match.content.success) {
+    throw new Error("I could not find a published Facebook post to delete.");
+  }
+
+  const artifact = match.artifact;
+  const content = match.content.data;
+  const idempotencyKey = `facebook-delete:${artifact.id}:${crypto.createHash("sha256").update(content.external_post_id).digest("hex").slice(0, 24)}`;
+  const now = new Date().toISOString();
+  const actionValues = {
+    office_id: input.officeId,
+    agent_id: input.agentId,
+    deal_id: artifact.deal_id,
+    skill_name: "facebook_delete_post",
+    exact_payload: {
+      artifactId: artifact.id,
+      connectionId: content.connection_id,
+      pageId: content.page_id,
+      pageName: content.page_name,
+      postId: content.external_post_id,
+    },
+    summary: `Delete ${artifact.title} from ${content.page_name}`,
+    recipient_kind: "agent",
+    status: "approved",
+    required_approver: "agent",
+    approved_by: input.agentId,
+    approved_at: now,
+    idempotency_key: idempotencyKey,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+  };
+  const { data: inserted, error: insertError } = await input.db
+    .from("action_requests")
+    .insert(actionValues)
+    .select("id,status")
+    .maybeSingle();
+  let action = inserted;
+  if (insertError) {
+    const { data: existing, error: existingError } = await input.db
+      .from("action_requests")
+      .select("id,status")
+      .eq("idempotency_key", idempotencyKey)
+      .eq("agent_id", input.agentId)
+      .maybeSingle();
+    if (existingError) throw new Error(`Facebook deletion lookup failed: ${existingError.message}`);
+    action = existing;
+  }
+  if (!action) throw new Error("The Facebook deletion could not be saved.");
+  if (["failed", "cancelled"].includes(action.status)) {
+    const { data: retry, error: retryError } = await input.db
+      .from("action_requests")
+      .insert({ ...actionValues, idempotency_key: `${idempotencyKey}:retry:${crypto.randomUUID()}` })
+      .select("id,status")
+      .single();
+    if (retryError) throw new Error(`Facebook deletion retry could not be created: ${retryError.message}`);
+    action = retry;
+  }
+
+  if (action.status !== "completed") {
+    const { error: updateError } = await input.db.from("artifacts").update({
+      content: { ...content, publish_status: "deleting" },
+      updated_at: now,
+    }).eq("id", artifact.id).eq("agent_id", input.agentId);
+    if (updateError) throw new Error(`Facebook deletion state could not be saved: ${updateError.message}`);
+  }
+  await writeAudit(input.db, {
+    officeId: input.officeId,
+    actor: "user",
+    agentId: input.agentId,
+    dealId: artifact.deal_id ?? undefined,
+    action: "facebook.delete_approved_by_message",
+    payload: {
+      actionRequestId: action.id,
+      artifactId: artifact.id,
+      pageId: content.page_id,
+      postId: content.external_post_id,
+      approvalPhrase: "explicit_agent_message",
+    },
+  });
+  return {
+    actionRequestId: action.id,
+    artifactId: artifact.id,
+    title: artifact.title,
+    pageName: content.page_name,
+    postId: content.external_post_id,
+    status: action.status,
+  };
 }
 
 export async function approveLatestFacebookDraftFromConversation(input: {

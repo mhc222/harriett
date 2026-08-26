@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isFacebookDeleteCommand,
   isFacebookDraftCommand,
   isFacebookPublishApproval,
   processingAcknowledgement,
@@ -48,6 +49,13 @@ describe("formatAgentMessageForChannel", () => {
     expect(isFacebookDraftCommand("Draft social media copy for my new listing")).toBe(true);
     expect(isFacebookDraftCommand("What did I post yesterday?")).toBe(false);
     expect(isFacebookDraftCommand("post it")).toBe(false);
+  });
+
+  it("requires Facebook context for an ambiguous conversational deletion", () => {
+    expect(isFacebookDeleteCommand("Delete that Facebook post")).toBe(true);
+    expect(isFacebookDeleteCommand("Take the Facebook post down")).toBe(true);
+    expect(isFacebookDeleteCommand("delete it")).toBe(false);
+    expect(isFacebookDeleteCommand("delete it", true)).toBe(true);
   });
 
   it("returns deterministic progress copy without a model call", () => {
