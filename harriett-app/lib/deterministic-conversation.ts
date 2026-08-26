@@ -8,7 +8,7 @@ import {
 } from "@/lib/agent-deals";
 import { withSkillTrace } from "@/lib/execution-trace";
 
-export type DeterministicPwaResponse = {
+export type DeterministicConversationResponse = {
   response: string;
   lane: "reflex" | "fast";
   intent: string;
@@ -16,10 +16,10 @@ export type DeterministicPwaResponse = {
   outcome: "deterministic_reflex" | "deterministic_deal_portfolio";
 } | null;
 
-export async function resolveDeterministicPwaResponse(
+export async function resolveDeterministicConversationResponse(
   db: SupabaseClient,
   input: { officeId: string; agentId: string; body: string },
-): Promise<DeterministicPwaResponse> {
+): Promise<DeterministicConversationResponse> {
   const decision = routeConversationMessage(input.body);
   const reflex = deterministicReflexResponse(input.body);
 
@@ -62,4 +62,3 @@ export async function resolveDeterministicPwaResponse(
 
   return null;
 }
-

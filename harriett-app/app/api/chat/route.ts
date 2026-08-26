@@ -5,13 +5,8 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
-import { deterministicReflexResponse, routeConversationMessage } from "@/lib/ai/conversation-router";
-import {
-  AgentDealSearchInputSchema,
-  AgentDealSearchOutputSchema,
-  formatAgentDealPortfolio,
-  searchAgentDeals,
-} from "@/lib/agent-deals";
+import { routeConversationMessage } from "@/lib/ai/conversation-router";
+import { writeAudit } from "@/lib/audit";
 import { authenticatedContext } from "@/lib/auth-context";
 import { createUserClient } from "@/lib/db/server";
 import type { processAgentPwa } from "@/trigger/process-agent-pwa";
@@ -26,6 +21,38 @@ const RequestSchema = z.object({
     parts: z.array(z.unknown()),
   })).min(1),
 });
+
+const FastTurnResultSchema = z.object({
+  response: z.string().min(1),
+  outbound_message_id: z.string().uuid(),
+  turn_id: z.string().uuid(),
+  created_at: z.string(),
+});
+
+export async function GET() {
+  const db = await createUserClient();
+  const auth = await authenticatedContext(db);
+  if (!auth) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data, error } = await db
+    .from("messages")
+    .select("id, direction, channel, body, created_at")
+    .eq("office_id", auth.officeId)
+    .eq("agent_id", auth.agentId)
+    .in("channel", ["sms", "whatsapp", "pwa"])
+    .order("created_at", { ascending: true })
+    .limit(120);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  return Response.json({
+    messages: (data ?? []).map((message) => ({
+      id: message.id,
+      role: message.direction === "inbound" ? "user" : "assistant",
+      parts: [{ type: "text", text: message.body }],
+      metadata: { createdAt: message.created_at, channel: message.channel },
+    })),
+  });
+}
 
 function textFromMessage(message: z.infer<typeof RequestSchema>["messages"][number]): string {
   return message.parts
@@ -94,33 +121,50 @@ export async function POST(request: Request) {
     return Response.json({ error: inboundError?.message ?? "Could not save message" }, { status: 500 });
   }
 
-  let immediateResponse = deterministicReflexResponse(body);
   const route = routeConversationMessage(body);
-  if (
-    !immediateResponse
-    && route.lane === "fast"
+  const directFastTurn = (
+    route.lane === "reflex"
+    && route.intent === "conversation_reflex"
+  ) || (
+    route.lane === "fast"
     && route.reasonCode === "deterministic_agent_deal_portfolio"
-  ) {
-    const searchInput = AgentDealSearchInputSchema.parse({ includeClosed: false, limit: 20 });
-    const result = await searchAgentDeals(db, {
-      officeId: auth.officeId,
-      agentId: auth.agentId,
-    }, searchInput);
-    immediateResponse = formatAgentDealPortfolio(
-      AgentDealSearchOutputSchema.parse(result).deals,
+  );
+  let immediateResponse: string | null = null;
+  if (directFastTurn) {
+    const displayedAt = new Date().toISOString();
+    const fastResult = await db.rpc("complete_pwa_fast_turn", {
+      p_inbound_message_id: inbound.id,
+      p_displayed_at: displayedAt,
+    });
+    if (!fastResult.error) {
+      const row = Array.isArray(fastResult.data) ? fastResult.data[0] : fastResult.data;
+      immediateResponse = FastTurnResultSchema.parse(row).response;
+    } else {
+      await writeAudit(db, {
+        officeId: auth.officeId,
+        actor: "system",
+        agentId: auth.agentId,
+        action: "pwa.fast_path_fell_back",
+        payload: {
+          inboundMessageId: inbound.id,
+          reasonCode: route.reasonCode,
+          error: fastResult.error.message.slice(0, 500),
+        },
+      });
+    }
+  }
+  const originalMessages = parsed.data.messages as UIMessage[];
+  if (!immediateResponse) {
+    await tasks.trigger<typeof processAgentPwa>(
+      "process-agent-pwa",
+      { messageId: inbound.id },
+      {
+        idempotencyKey: ["pwa-message", inbound.id],
+        idempotencyKeyTTL: "7d",
+        concurrencyKey: auth.agentId,
+      },
     );
   }
-  const displayedAt = immediateResponse ? new Date().toISOString() : undefined;
-  const originalMessages = parsed.data.messages as UIMessage[];
-  await tasks.trigger<typeof processAgentPwa>(
-    "process-agent-pwa",
-    { messageId: inbound.id, displayedAt },
-    {
-      idempotencyKey: ["pwa-message", inbound.id],
-      idempotencyKeyTTL: "7d",
-      concurrencyKey: auth.agentId,
-    },
-  );
 
   const stream = createUIMessageStream({
     originalMessages,

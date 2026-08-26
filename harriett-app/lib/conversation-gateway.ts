@@ -1,22 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAudit } from "@/lib/audit";
-import {
-  deterministicReflexResponse,
-  routeConversationMessage,
-} from "@/lib/ai/conversation-router";
-import {
-  AgentDealSearchInputSchema,
-  AgentDealSearchOutputSchema,
-  formatAgentDealPortfolio,
-  searchAgentDeals,
-} from "@/lib/agent-deals";
+import { routeConversationMessage } from "@/lib/ai/conversation-router";
 import {
   recordConversationEvent,
   startConversationTrace,
   updateConversationTrace,
 } from "@/lib/conversation-trace";
+import { resolveDeterministicConversationResponse } from "@/lib/deterministic-conversation";
 import { sendAgentMessage, type AgentMessagingChannel } from "@/lib/sms";
-import { withSkillTrace } from "@/lib/execution-trace";
 
 export function conversationFastLaneEnabled(agentId?: string): boolean {
   if (process.env.CONVERSATION_FAST_LANE_ENABLED !== "true" || !agentId) return false;
@@ -47,10 +38,8 @@ export async function tryDeterministicConversationTurn(
   dryRun?: boolean;
 } | null> {
   const decision = routeConversationMessage(input.body);
-  const reflexResponse = deterministicReflexResponse(input.body);
   const isReflex = decision.lane === "reflex"
-    && decision.intent === "conversation_reflex"
-    && Boolean(reflexResponse);
+    && decision.intent === "conversation_reflex";
   const isDealPortfolio = decision.lane === "fast"
     && decision.reasonCode === "deterministic_agent_deal_portfolio";
   if (!isReflex && !isDealPortfolio) {
@@ -87,39 +76,28 @@ export async function tryDeterministicConversationTurn(
   });
   await updateConversationTrace(db, { turnId: trace.id, status: "running" });
 
-  let response = reflexResponse ?? "";
-  let outcome = "deterministic_reflex";
+  const resolutionStartedAt = Date.now();
   if (isDealPortfolio) {
-    const toolStartedAt = Date.now();
     await recordConversationEvent(db, {
       officeId: input.officeId,
       turnId: trace.id,
       event: "tool.started",
       payload: { tool: "searchDeals" },
     });
-    const searchInput = AgentDealSearchInputSchema.parse({ includeClosed: false, limit: 20 });
-    const result = await withSkillTrace(
-      { db, officeId: input.officeId, agentId: input.agentId },
-      {
-        name: "search_deals",
-        version: "1.0.0",
-        risk: "read",
-        input: searchInput,
-      },
-      () => searchAgentDeals(db, {
-        officeId: input.officeId,
-        agentId: input.agentId,
-      }, searchInput)
-    );
-    const parsed = AgentDealSearchOutputSchema.parse(result);
-    response = formatAgentDealPortfolio(parsed.deals);
-    outcome = "deterministic_deal_portfolio";
+  }
+  const deterministic = await resolveDeterministicConversationResponse(db, {
+    officeId: input.officeId,
+    agentId: input.agentId,
+    body: input.body,
+  });
+  if (!deterministic) return null;
+  if (isDealPortfolio) {
     await recordConversationEvent(db, {
       officeId: input.officeId,
       turnId: trace.id,
       event: "tool.completed",
-      durationMs: Date.now() - toolStartedAt,
-      payload: { tool: "searchDeals", resultCount: parsed.deals.length },
+      durationMs: Date.now() - resolutionStartedAt,
+      payload: { tool: "searchDeals" },
     });
   }
 
@@ -127,7 +105,7 @@ export async function tryDeterministicConversationTurn(
     agentId: input.agentId,
     channel: input.channel,
     inReplyToId: input.inboundMessageId,
-    body: response,
+    body: deterministic.response,
   });
 
   await updateConversationTrace(db, {
@@ -170,7 +148,7 @@ export async function tryDeterministicConversationTurn(
     officeId: input.officeId,
     turnId: trace.id,
     event: "turn.completed",
-    payload: { outcome },
+    payload: { outcome: deterministic.outcome },
   });
   await writeAudit(db, {
     officeId: input.officeId,
@@ -186,7 +164,7 @@ export async function tryDeterministicConversationTurn(
       outboundMessageId: sent.messageId,
       providerMessageId: sent.providerMessageId ?? null,
       replay: trace.replay,
-      outcome,
+      outcome: deterministic.outcome,
     },
   });
 

@@ -19,6 +19,21 @@ function messageText(message: UIMessage): string {
     .join("\n");
 }
 
+function messageChannel(message: UIMessage): "pwa" | "sms" | "whatsapp" {
+  const metadata = message.metadata && typeof message.metadata === "object"
+    ? message.metadata as Record<string, unknown>
+    : null;
+  return metadata?.channel === "sms" || metadata?.channel === "whatsapp"
+    ? metadata.channel
+    : "pwa";
+}
+
+function channelLabel(channel: "pwa" | "sms" | "whatsapp"): string | null {
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "sms") return "Text";
+  return null;
+}
+
 export function HarriettChat({
   agentName,
   initialMessages,
@@ -37,6 +52,7 @@ export function HarriettChat({
     stop,
     regenerate,
     clearError,
+    setMessages,
   } = useChat({
     id: "harriett-pwa-chat",
     messages: initialMessages,
@@ -47,6 +63,27 @@ export function HarriettChat({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isWorking]);
+
+  useEffect(() => {
+    if (isWorking) return;
+    let cancelled = false;
+
+    async function syncConversation() {
+      const response = await fetch("/api/chat", { cache: "no-store" }).catch(() => null);
+      if (!response?.ok || cancelled) return;
+      const payload = await response.json().catch(() => null) as { messages?: UIMessage[] } | null;
+      if (!cancelled && Array.isArray(payload?.messages)) {
+        setMessages(payload.messages);
+      }
+    }
+
+    void syncConversation();
+    const interval = window.setInterval(() => void syncConversation(), 4_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [isWorking, setMessages]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -112,6 +149,7 @@ export function HarriettChat({
               const text = messageText(message);
               if (!text) return null;
               const isAgent = message.role === "user";
+              const source = channelLabel(messageChannel(message));
               return (
                 <article
                   key={message.id}
@@ -123,7 +161,10 @@ export function HarriettChat({
                     </span>
                   )}
                   <div>
-                    <p className="chat-message-label">{isAgent ? "You" : "Harriett"}</p>
+                    <p className="chat-message-label">
+                      {isAgent ? "You" : "Harriett"}
+                      {source && <span>via {source}</span>}
+                    </p>
                     <div className="chat-message-body">{text}</div>
                   </div>
                 </article>

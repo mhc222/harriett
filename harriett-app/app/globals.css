@@ -307,6 +307,7 @@ a {
 .chat-message-agent { margin-left: auto; justify-content: flex-end; }
 .chat-message-avatar { width: 2rem; height: 2rem; margin-top: 1.35rem; }
 .chat-message-label { margin-bottom: 0.3rem; color: var(--ink-soft); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.chat-message-label span { margin-left: 0.4rem; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .chat-message-agent .chat-message-label { text-align: right; }
 .chat-message-body { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 0.95rem 0.95rem 0.95rem 0.22rem; background: var(--surface); padding: 0.85rem 1rem; color: var(--ink); line-height: 1.55; }
 .chat-message-agent .chat-message-body { border-color: color-mix(in oklch, var(--crimson) 72%, var(--line)); border-radius: 0.95rem 0.95rem 0.22rem; background: var(--crimson); color: white; }

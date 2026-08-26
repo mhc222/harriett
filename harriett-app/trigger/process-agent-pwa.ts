@@ -2,7 +2,7 @@ import { schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { runAgentTurn } from "@/lib/ai/runtime";
 import { writeAudit } from "@/lib/audit";
-import { resolveDeterministicPwaResponse } from "@/lib/pwa-conversation";
+import { resolveDeterministicConversationResponse } from "@/lib/deterministic-conversation";
 import { createServiceClient } from "@/lib/db/server";
 import {
   completeWorkflowTrace,
@@ -49,7 +49,7 @@ export const processAgentPwa = schemaTask({
 
     let turnId: string | undefined;
     try {
-      const deterministic = await resolveDeterministicPwaResponse(db, {
+      const deterministic = await resolveDeterministicConversationResponse(db, {
         officeId: inbound.office_id,
         agentId: inbound.agent_id,
         body: inbound.body,
@@ -104,7 +104,6 @@ export const processAgentPwa = schemaTask({
           agentId: inbound.agent_id,
           channel: "pwa",
           message: inbound.body,
-          conversationId: inbound.thread_id ?? undefined,
         }, { db });
         response = result.response;
         aiRunId = result.runId;

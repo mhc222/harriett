@@ -3,7 +3,7 @@ import {
   type ConversationRoute,
 } from "@/lib/contracts/conversation";
 
-const GREETING = /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening))(?:\s+harriett)?[.!?]*$/i;
+const GREETING = /^(?:(?:hi|hello|hey)(?:\s+(?:there|harriett))?|howdy|(?:good\s+)?(?:morning|afternoon|evening))(?:\s+harriett)?[.!?]*$/i;
 const THANKS = /^(?:thanks|thank\s+you|appreciate\s+it|got\s+it)[.!?]*$/i;
 const PRESENCE_CHECK = /^(?:are\s+you\s+there|you\s+there|still\s+there)[.!?]*$/i;
 const HELP = /^(?:help|what\s+can\s+you\s+do)[.!?]*$/i;
@@ -27,7 +27,11 @@ function route(value: ConversationRoute): ConversationRoute {
 
 export function deterministicReflexResponse(message: string): string | null {
   const trimmed = message.trim();
-  if (GREETING.test(trimmed)) return "Hi. What can I help you with?";
+  if (GREETING.test(trimmed)) {
+    return /^hey\s+there|^howdy/i.test(trimmed)
+      ? "Hey there. What can I help you with?"
+      : "Hi. What can I help you with?";
+  }
   if (THANKS.test(trimmed)) return "You’re welcome.";
   if (PRESENCE_CHECK.test(trimmed)) return "I’m here. What do you need?";
   if (HELP.test(trimmed)) {

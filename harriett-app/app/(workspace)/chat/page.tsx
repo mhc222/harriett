@@ -13,18 +13,19 @@ export default async function ChatPage() {
   const [{ data: agent }, { data: rows }] = await Promise.all([
     db.from("agents").select("name").eq("id", auth.agentId).single(),
     db.from("messages")
-      .select("id, direction, body, created_at")
+      .select("id, direction, channel, body, created_at")
+      .eq("office_id", auth.officeId)
       .eq("agent_id", auth.agentId)
-      .eq("channel", "pwa")
+      .in("channel", ["sms", "whatsapp", "pwa"])
       .order("created_at", { ascending: true })
-      .limit(80),
+      .limit(120),
   ]);
 
   const initialMessages: UIMessage[] = (rows ?? []).map((message) => ({
     id: message.id,
     role: message.direction === "inbound" ? "user" : "assistant",
     parts: [{ type: "text", text: message.body }],
-    metadata: { createdAt: message.created_at },
+    metadata: { createdAt: message.created_at, channel: message.channel },
   }));
 
   return (
@@ -34,4 +35,3 @@ export default async function ChatPage() {
     />
   );
 }
-

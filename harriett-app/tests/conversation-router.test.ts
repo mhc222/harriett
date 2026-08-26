@@ -9,6 +9,11 @@ describe("routeConversationMessage", () => {
   it.each([
     "Hi Harriett",
     "Hello",
+    "Hey there",
+    "Hi there",
+    "Howdy",
+    "Morning",
+    "Good afternoon Harriett",
     "Thanks",
     "Are you there?",
     "Help",
@@ -65,7 +70,10 @@ describe("routeConversationMessage", () => {
 
   it("creates deterministic human copy only for exact reflexes", () => {
     expect(deterministicReflexResponse("Hi Harriett")).toBe("Hi. What can I help you with?");
+    expect(deterministicReflexResponse("Hey there")).toBe("Hey there. What can I help you with?");
+    expect(deterministicReflexResponse("Howdy")).toBe("Hey there. What can I help you with?");
     expect(deterministicReflexResponse("Hi Harriett, check my listings")).toBeNull();
+    expect(deterministicReflexResponse("Hey there, check my listings")).toBeNull();
   });
 });
 
