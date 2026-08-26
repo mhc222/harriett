@@ -76,7 +76,9 @@ export async function createFacebookDraft(input: {
   db: SupabaseClient;
   officeId: string;
   agentId: string;
-  actorUserId: string;
+  actor?: "user" | "harriett";
+  actorUserId?: string;
+  proposalSource?: "manual" | "whatsapp_request" | "deal_status_change";
   postType: z.infer<typeof SocialPostTypeSchema>;
   shareMode: z.infer<typeof SocialShareModeSchema>;
   dealId?: string;
@@ -205,6 +207,7 @@ Return a short fact-check list naming every material fact the agent should confi
       fact_check_notes: generated.factCheckNotes,
       compliance_notes: finalized.complianceNotes,
       generation_mode: generationMode,
+      proposal_source: input.proposalSource ?? "manual",
       social_skill: {
         name: REAL_ESTATE_SOCIAL_SKILL.name,
         version: REAL_ESTATE_SOCIAL_SKILL.version,
@@ -216,7 +219,7 @@ Return a short fact-check list naming every material fact the agent should confi
 
   await writeAudit(input.db, {
     officeId: input.officeId,
-    actor: "user",
+    actor: input.actor ?? "user",
     actorId: input.actorUserId,
     agentId: input.agentId,
     dealId: dealId ?? undefined,
@@ -232,8 +235,21 @@ Return a short fact-check list naming every material fact the agent should confi
       factCheckCount: generated.factCheckNotes.length,
       complianceCheckCount: finalized.complianceNotes.length,
       generationMode,
+      proposalSource: input.proposalSource ?? "manual",
       socialSkillVersion: REAL_ESTATE_SOCIAL_SKILL.version,
     },
   });
-  return { artifactId: artifact.id };
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "")
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000");
+  return {
+    artifactId: artifact.id,
+    title: generated.title,
+    message: finalized.message,
+    reviewUrl: `${appUrl}/social?draft=${artifact.id}`,
+    primaryImageUrl: listing?.primaryImageUrl ?? null,
+    publicListingUrl: listing?.url ?? null,
+    generationMode,
+  };
 }

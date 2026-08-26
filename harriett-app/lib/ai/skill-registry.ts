@@ -19,6 +19,11 @@ import { createDealDocumentTools } from "@/lib/ai/tools/deal-documents";
 import { parseGoogleActionPayload, ProposeGoogleActionInputSchema } from "@/lib/google-actions";
 import { decideGoogleAction } from "@/lib/google-action-approval";
 import type { ContextSource } from "@/lib/memory/routing";
+import {
+  createFacebookDraft,
+  SocialPostTypeSchema,
+  SocialShareModeSchema,
+} from "@/lib/social-drafts";
 
 export function defineSkill<I, O>(definition: SkillDefinition<I, O>): SkillDefinition<I, O> {
   return definition;
@@ -118,6 +123,59 @@ const searchDealsSkill = defineSkill({
         closingDate: deal.closing_date,
       })),
     };
+  },
+});
+
+const CreateFacebookDraftInput = z.object({
+  dealId: z.string().uuid(),
+  postType: SocialPostTypeSchema.optional(),
+  shareMode: SocialShareModeSchema.default("link_preview"),
+  notes: z.string().trim().max(2_000).optional(),
+});
+const CreateFacebookDraftOutput = z.object({
+  artifactId: z.string().uuid(),
+  title: z.string(),
+  message: z.string(),
+  reviewUrl: z.string().url(),
+  primaryImageUrl: z.string().url().nullable(),
+  publicListingUrl: z.string().url().nullable(),
+  generationMode: z.enum(["ai", "deterministic_fallback"]),
+  published: z.literal(false),
+});
+
+const createFacebookDraftSkill = defineSkill({
+  name: "create_facebook_draft",
+  version: "1.0.0",
+  description: "Create and save a review-only Facebook draft for one verified agent transaction. Find the exact deal with searchDeals first. This tool never publishes the post.",
+  inputSchema: CreateFacebookDraftInput,
+  outputSchema: CreateFacebookDraftOutput,
+  risk: "internal_write" as SkillRisk,
+  approvalPolicy: () => "none",
+  execute: async (input, context) => {
+    const { data: deal, error } = await context.db.from("deals")
+      .select("id,status")
+      .eq("id", input.dealId)
+      .eq("office_id", context.officeId)
+      .eq("agent_id", context.agentId)
+      .single();
+    if (error || !deal) throw new Error("the selected transaction was not found for this agent");
+    const inferredPostType = deal.status === "closed"
+      ? "just_sold"
+      : deal.status === "under_contract"
+        ? "under_contract"
+        : "new_listing";
+    const draft = await createFacebookDraft({
+      db: context.db,
+      officeId: context.officeId,
+      agentId: context.agentId,
+      actor: "harriett",
+      proposalSource: "whatsapp_request",
+      postType: input.postType ?? inferredPostType,
+      shareMode: input.shareMode,
+      dealId: deal.id,
+      notes: input.notes,
+    });
+    return { ...draft, published: false as const };
   },
 });
 
@@ -441,6 +499,11 @@ export function createRuntimeTools(
       inputSchema: readChecklistSkill.inputSchema,
       execute: (input) => runSkill(readChecklistSkill, input, context),
     }) } : {}),
+    ...(allowed.has("social") ? { createFacebookDraft: tool({
+      description: createFacebookDraftSkill.description,
+      inputSchema: createFacebookDraftSkill.inputSchema,
+      execute: (input) => runSkill(createFacebookDraftSkill, input, context),
+    }) } : {}),
     ...(allowed.has("knowledge") ? { searchOfficeKnowledge: tool({
       description: searchKnowledgeSkill.description,
       inputSchema: searchKnowledgeSkill.inputSchema,
@@ -482,4 +545,5 @@ export const skillRegistry = {
   proposeGoogleAction: proposeActionSkill,
   listPendingGoogleActions: listPendingActionsSkill,
   decideGoogleAction: decideActionSkill,
+  createFacebookDraft: createFacebookDraftSkill,
 } as const;

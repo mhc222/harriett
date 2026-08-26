@@ -69,6 +69,19 @@ describe("memory context routing", () => {
     expect(sourceAuthority("tasks")).toBeGreaterThan(sourceAuthority("memory"));
   });
 
+  it("gives conversational social requests the same deal, voice, and draft skill used by the web app", () => {
+    const route = routeContext({
+      intent: "social",
+      needsKnowledge: false,
+      needsMemory: true,
+      dealAddressHint: "11417 Woodbank Ridge",
+      requestedMutation: true,
+    });
+
+    expect(route.sources).toEqual(["structured", "memory", "social"]);
+    expect(sourceAuthority("social")).toBeGreaterThan(sourceAuthority("memory"));
+  });
+
   it("keeps uploaded contracts separate from outside web research", () => {
     const documentRoute = routeContext({
       intent: "document_lookup",

@@ -1,4 +1,4 @@
-import { schemaTask } from "@trigger.dev/sdk";
+import { schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
@@ -19,6 +19,7 @@ import {
   findPritchettMooreListing,
   savePritchettMooreListing,
 } from "@/lib/integrations/pritchett-moore";
+import type { proposeFacebookStatusDraft } from "@/trigger/propose-facebook-status-draft";
 
 // The parse pipeline: document -> DealFields -> deal row -> calendar events
 // -> checklist. Durable task; each step retries as a unit via Trigger.dev.
@@ -103,6 +104,9 @@ export const parseDeal = schemaTask({
           property_id: propertyId,
           source: doc.source === "upload" ? "manual" : doc.source,
       };
+      const { data: previousDeal } = doc.deal_id
+        ? await db.from("deals").select("status").eq("id", doc.deal_id).maybeSingle()
+        : { data: null };
       const dealQuery = doc.deal_id
         ? db.from("deals").update(dealValues).eq("id", doc.deal_id).select("id").single()
         : db.from("deals").insert(dealValues).select("id").single();
@@ -174,6 +178,35 @@ export const parseDeal = schemaTask({
           flags: fields.flags,
         },
       });
+
+      const previousStatus = previousDeal?.status ?? null;
+      const currentStatus = dealValues.status;
+      if (previousStatus !== currentStatus) {
+        const postType = currentStatus === "under_contract" ? "under_contract" : "new_listing";
+        const proposalRun = await tasks.trigger<typeof proposeFacebookStatusDraft>(
+          "propose-facebook-status-draft",
+          {
+            officeId: ids.officeId,
+            agentId: ids.agentId,
+            dealId,
+            postType,
+            status: currentStatus,
+          },
+          {
+            idempotencyKey: ["facebook-status-draft", dealId, currentStatus],
+            idempotencyKeyTTL: "30d",
+            concurrencyKey: ids.agentId,
+          },
+        );
+        await writeAudit(db, {
+          officeId: ids.officeId,
+          actor: "harriett",
+          agentId: ids.agentId,
+          dealId,
+          action: "facebook.status_draft_queued",
+          payload: { previousStatus, currentStatus, postType, runId: proposalRun.id },
+        });
+      }
 
       try {
         const documentReview = await reviewTransactionDocument(pdf);

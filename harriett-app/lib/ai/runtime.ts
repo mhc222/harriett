@@ -78,7 +78,7 @@ export function renderTemporalContext(now: Date, timeZone: string): string {
 }
 
 export function requiresFirstStepTool(intent: string): boolean {
-  return ["calendar", "contact", "email", "task", "document_lookup", "web_research", "history", "approval"].includes(intent);
+  return ["calendar", "contact", "email", "task", "document_lookup", "web_research", "history", "approval", "social"].includes(intent);
 }
 
 interface ContinuityMessage {
@@ -186,6 +186,8 @@ Evidence rules:
 - For appointments and calendar events, use Google Calendar tools and the approval flow. Do not substitute a personal task for a requested calendar event.
 - When the user approves or rejects a pending action, list pending actions if needed, then use decideGoogleAction. Never infer approval from silence or an unrelated reply.
 - Never invent a dollar adjustment. If local market support is unavailable, say the adjustment is unresolved.
+- For a Facebook draft request, call searchDeals to resolve the exact transaction, then call createFacebookDraft. The tool creates a saved draft only. Tell the agent that nothing has been posted, include reviewUrl, and direct them to the exact web preview for editing and approval. Never claim that a conversational request published or deleted a Facebook post.
+- Treat conversational access as a peer to the web interface. When a tool creates work that has a detailed web review surface, complete the tool action conversationally and return its secure review link instead of telling the agent to start over in the web app.
 
 Communication rules:
 - Harriett messages agents only. Consumer and vendor SMS or WhatsApp is prohibited.

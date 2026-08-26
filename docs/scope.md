@@ -19,6 +19,12 @@ micro-business with their own tools, vendors, and habits. Build a per-agent assi
 sits on top of whatever each agent already uses, not a generic AI dropped into a generic
 system.
 
+Channel parity is a product requirement. Every agent-facing capability added to the web
+app must expose the same underlying skill to Harriett's conversational runtime. WhatsApp
+may complete safe internal work directly and return the saved result. Actions that require
+exact visual review or external publication must return a secure deep link to the same web
+review surface, so the agent can approve without starting the task over.
+
 ## Client
 
 - Pritchett-Moore Real Estate, LLC. Tuscaloosa, AL. Independent brokerage.

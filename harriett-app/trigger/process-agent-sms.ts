@@ -2,7 +2,10 @@ import { schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
-import { formatAgentMessageForChannel } from "@/lib/ai/message-format";
+import {
+  formatAgentMessageForChannel,
+  formatFacebookDraftForWhatsApp,
+} from "@/lib/ai/message-format";
 import { runAgentTurn } from "@/lib/ai/runtime";
 import { sendAgentMessage, messageDeliveryMode, type AgentMessagingChannel } from "@/lib/sms";
 import {
@@ -12,6 +15,27 @@ import {
   startWorkflowTrace,
 } from "@/lib/execution-trace";
 import type { processAgentMemory } from "@/trigger/process-agent-memory";
+
+const FacebookDraftSkillOutputSchema = z.object({
+  title: z.string(),
+  message: z.string(),
+  reviewUrl: z.string().url(),
+  primaryImageUrl: z.string().url().nullable(),
+});
+
+async function facebookDraftForRun(db: ReturnType<typeof createServiceClient>, aiRunId: string) {
+  const { data, error } = await db.from("skill_runs")
+    .select("output")
+    .eq("ai_run_id", aiRunId)
+    .eq("skill_name", "create_facebook_draft")
+    .eq("status", "completed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Facebook draft result lookup failed: ${error.message}`);
+  const parsed = FacebookDraftSkillOutputSchema.safeParse(data?.output);
+  return parsed.success ? parsed.data : null;
+}
 
 export const processAgentSms = schemaTask({
   id: "process-agent-sms",
@@ -133,13 +157,20 @@ export const processAgentSms = schemaTask({
         payload: { inboundMessageId: messageId, aiRunId: turn.runId },
       });
 
-      const replyBody = formatAgentMessageForChannel(turn.response, channel);
+      const facebookDraft = channel === "whatsapp"
+        ? await facebookDraftForRun(db, turn.runId)
+        : null;
+      const replyBody = facebookDraft
+        ? formatFacebookDraftForWhatsApp(facebookDraft)
+        : formatAgentMessageForChannel(turn.response, channel);
+      const mediaUrls = facebookDraft?.primaryImageUrl ? [facebookDraft.primaryImageUrl] : undefined;
       const sent = await sendAgentMessage(db, {
         agentId: inbound.agent_id,
         channel,
         dealId: inbound.deal_id ?? undefined,
         inReplyToId: messageId,
         body: replyBody,
+        mediaUrls,
       });
       replySent = true;
       await recordWorkflowEvent(db, inbound.office_id, workflow.id, "message.reply_sent", {
@@ -147,6 +178,7 @@ export const processAgentSms = schemaTask({
         outboundMessageId: sent.messageId,
         providerMessageId: sent.providerMessageId ?? null,
         dryRun: sent.dryRun ?? false,
+        mediaCount: mediaUrls?.length ?? 0,
       });
       await tasks.trigger<typeof processAgentMemory>(
         "process-agent-memory",

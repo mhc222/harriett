@@ -10,7 +10,8 @@ export type ContextSource =
   | "knowledge"
   | "microsoft_graph"
   | "google_workspace"
-  | "property_provider";
+  | "property_provider"
+  | "social";
 
 export interface ContextRoute {
   sources: ContextSource[];
@@ -26,6 +27,7 @@ const INTENT_SOURCES: Record<AgentIntent["intent"], ContextSource[]> = {
   document_lookup: ["documents"],
   web_research: ["web"],
   writing: [],
+  social: ["structured", "memory", "social"],
   calendar: ["google_workspace"],
   contact: ["google_workspace"],
   email: ["google_workspace"],
@@ -58,6 +60,7 @@ export function routeContext(intent: AgentIntent): ContextRoute {
 export function sourceAuthority(source: ContextSource): number {
   switch (source) {
     case "structured":
+    case "social":
     case "tasks":
     case "documents":
       return 100;

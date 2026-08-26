@@ -73,6 +73,7 @@ export const AgentIntentSchema = z.object({
     "document_lookup",
     "web_research",
     "writing",
+    "social",
     "calendar",
     "contact",
     "email",

@@ -24,4 +24,9 @@ describe("contract evidence routing", () => {
   it("does not rewrite an unrelated general question", () => {
     expect(enforceEvidenceRouting("What is the weather tomorrow?", base)).toEqual(base);
   });
+
+  it("routes conversational Facebook creation through the social skill", () => {
+    expect(enforceEvidenceRouting("Make a Facebook post for Woodbank Ridge", base))
+      .toMatchObject({ intent: "social", needsMemory: true, requestedMutation: true });
+  });
 });
