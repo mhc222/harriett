@@ -117,7 +117,7 @@ describe("Meta integration", () => {
 
     expect(result).toEqual({
       postId: "123456789_987",
-      permalinkUrl: "https://www.facebook.com/123456789/posts/987",
+      permalinkUrl: "https://www.facebook.com/permalink.php?story_fbid=987&id=123456789",
       verificationStatus: "graph_confirmed",
     });
     const [requestUrl, requestInit] = fetchMock.mock.calls[0];
@@ -148,7 +148,7 @@ describe("Meta integration", () => {
       imageUrl: "https://assets.caboosecms.com/media/listing-image.jpg",
     })).resolves.toEqual({
       postId: "123456789_654",
-      permalinkUrl: "https://www.facebook.com/123456789/posts/654",
+      permalinkUrl: "https://www.facebook.com/permalink.php?story_fbid=654&id=123456789",
       verificationStatus: "graph_confirmed",
     });
 

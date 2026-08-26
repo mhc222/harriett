@@ -293,7 +293,11 @@ export async function publishFacebookPagePost(input: {
   } catch {
     // The post already exists at this point. A missing permalink must not cause a retry.
   }
-  return { postId, permalinkUrl, verificationStatus };
+  const storyId = postId.includes("_") ? postId.slice(postId.indexOf("_") + 1) : postId;
+  const canonicalPermalink = verificationStatus === "graph_confirmed"
+    ? `https://www.facebook.com/permalink.php?story_fbid=${encodeURIComponent(storyId)}&id=${encodeURIComponent(input.page.id)}`
+    : permalinkUrl;
+  return { postId, permalinkUrl: canonicalPermalink, verificationStatus };
 }
 
 export async function deleteFacebookPagePost(input: {
