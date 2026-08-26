@@ -524,6 +524,7 @@ Event examples:
 - `provider.accepted`
 - `provider.delivered`
 - `provider.read`
+- `provider.failed`
 - `turn.completed`
 - `turn.failed`
 

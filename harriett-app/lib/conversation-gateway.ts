@@ -5,11 +5,18 @@ import {
   routeConversationMessage,
 } from "@/lib/ai/conversation-router";
 import {
+  AgentDealSearchInputSchema,
+  AgentDealSearchOutputSchema,
+  formatAgentDealPortfolio,
+  searchAgentDeals,
+} from "@/lib/agent-deals";
+import {
   recordConversationEvent,
   startConversationTrace,
   updateConversationTrace,
 } from "@/lib/conversation-trace";
 import { sendAgentMessage, type AgentMessagingChannel } from "@/lib/sms";
+import { withSkillTrace } from "@/lib/execution-trace";
 
 export function conversationFastLaneEnabled(agentId?: string): boolean {
   if (process.env.CONVERSATION_FAST_LANE_ENABLED !== "true" || !agentId) return false;
@@ -40,8 +47,13 @@ export async function tryDeterministicConversationTurn(
   dryRun?: boolean;
 } | null> {
   const decision = routeConversationMessage(input.body);
-  const response = deterministicReflexResponse(input.body);
-  if (decision.lane !== "reflex" || decision.intent !== "conversation_reflex" || !response) {
+  const reflexResponse = deterministicReflexResponse(input.body);
+  const isReflex = decision.lane === "reflex"
+    && decision.intent === "conversation_reflex"
+    && Boolean(reflexResponse);
+  const isDealPortfolio = decision.lane === "fast"
+    && decision.reasonCode === "deterministic_agent_deal_portfolio";
+  if (!isReflex && !isDealPortfolio) {
     return null;
   }
 
@@ -74,6 +86,42 @@ export async function tryDeterministicConversationTurn(
     },
   });
   await updateConversationTrace(db, { turnId: trace.id, status: "running" });
+
+  let response = reflexResponse ?? "";
+  let outcome = "deterministic_reflex";
+  if (isDealPortfolio) {
+    const toolStartedAt = Date.now();
+    await recordConversationEvent(db, {
+      officeId: input.officeId,
+      turnId: trace.id,
+      event: "tool.started",
+      payload: { tool: "searchDeals" },
+    });
+    const searchInput = AgentDealSearchInputSchema.parse({ includeClosed: false, limit: 20 });
+    const result = await withSkillTrace(
+      { db, officeId: input.officeId, agentId: input.agentId },
+      {
+        name: "search_deals",
+        version: "1.0.0",
+        risk: "read",
+        input: searchInput,
+      },
+      () => searchAgentDeals(db, {
+        officeId: input.officeId,
+        agentId: input.agentId,
+      }, searchInput)
+    );
+    const parsed = AgentDealSearchOutputSchema.parse(result);
+    response = formatAgentDealPortfolio(parsed.deals);
+    outcome = "deterministic_deal_portfolio";
+    await recordConversationEvent(db, {
+      officeId: input.officeId,
+      turnId: trace.id,
+      event: "tool.completed",
+      durationMs: Date.now() - toolStartedAt,
+      payload: { tool: "searchDeals", resultCount: parsed.deals.length },
+    });
+  }
 
   const sent = await sendAgentMessage(db, {
     agentId: input.agentId,
@@ -122,13 +170,15 @@ export async function tryDeterministicConversationTurn(
     officeId: input.officeId,
     turnId: trace.id,
     event: "turn.completed",
-    payload: { outcome: "deterministic_reflex" },
+    payload: { outcome },
   });
   await writeAudit(db, {
     officeId: input.officeId,
     actor: "harriett",
     agentId: input.agentId,
-    action: `${input.channel}.deterministic_reply_completed`,
+    action: isDealPortfolio
+      ? `${input.channel}.fast_deal_portfolio_completed`
+      : `${input.channel}.deterministic_reply_completed`,
     payload: {
       turnId: trace.id,
       correlationId: trace.correlationId,
@@ -136,6 +186,7 @@ export async function tryDeterministicConversationTurn(
       outboundMessageId: sent.messageId,
       providerMessageId: sent.providerMessageId ?? null,
       replay: trace.replay,
+      outcome,
     },
   });
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
 import { resolveDeliveryStatus, validTwilioSignature } from "@/lib/sms";
+import { recordConversationProviderStatus } from "@/lib/conversation-trace";
 
 export async function POST(request: Request) {
   const raw = await request.text();
@@ -57,6 +58,13 @@ export async function POST(request: Request) {
       providerStatus: params.MessageStatus,
       errorCode: params.ErrorCode || undefined,
     },
+  });
+
+  await recordConversationProviderStatus(db, {
+    officeId: message.office_id,
+    outboundMessageId: message.id,
+    providerStatus: params.MessageStatus ?? "queued",
+    errorCode: params.ErrorCode || undefined,
   });
 
   return new NextResponse(null, { status: 204 });

@@ -115,3 +115,59 @@ export async function updateConversationTrace(
   const { error } = await db.from("conversation_turns").update(changes).eq("id", input.turnId);
   if (error) throw new Error(`conversation trace update failed: ${error.message}`);
 }
+
+export async function recordConversationProviderStatus(
+  db: SupabaseClient,
+  input: {
+    officeId: string;
+    outboundMessageId: string;
+    providerStatus: string;
+    errorCode?: string;
+  }
+): Promise<void> {
+  const { data: turn, error: lookupError } = await db
+    .from("conversation_turns")
+    .select("id, delivered_at")
+    .eq("office_id", input.officeId)
+    .eq("outbound_message_id", input.outboundMessageId)
+    .maybeSingle();
+  if (lookupError) throw new Error(`conversation provider status lookup failed: ${lookupError.message}`);
+  if (!turn) return;
+
+  const normalized = input.providerStatus.toLowerCase();
+  if (["delivered", "read"].includes(normalized) && !turn.delivered_at) {
+    const { error: updateError } = await db
+      .from("conversation_turns")
+      .update({ delivered_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", turn.id)
+      .is("delivered_at", null);
+    if (updateError) throw new Error(`conversation delivery timestamp failed: ${updateError.message}`);
+  }
+
+  if (["failed", "undelivered", "canceled"].includes(normalized)) {
+    await updateConversationTrace(db, {
+      turnId: turn.id,
+      status: "failed",
+      errorCode: input.errorCode ?? `provider_${normalized}`,
+    });
+  }
+
+  const event = normalized === "read"
+    ? "provider.read"
+    : normalized === "delivered"
+      ? "provider.delivered"
+      : ["failed", "undelivered", "canceled"].includes(normalized)
+        ? "provider.failed"
+        : null;
+  if (!event) return;
+  await recordConversationEvent(db, {
+    officeId: input.officeId,
+    turnId: turn.id,
+    event,
+    payload: {
+      outboundMessageId: input.outboundMessageId,
+      providerStatus: input.providerStatus,
+      errorCode: input.errorCode ?? null,
+    },
+  });
+}

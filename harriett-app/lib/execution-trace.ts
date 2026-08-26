@@ -16,7 +16,7 @@ export interface SkillTraceContext {
   db: SupabaseClient;
   officeId: string;
   agentId: string;
-  aiRunId: string;
+  aiRunId?: string;
   dealId?: string;
 }
 
@@ -36,7 +36,7 @@ export async function withSkillTrace<T>(
       office_id: context.officeId,
       agent_id: context.agentId,
       deal_id: context.dealId ?? null,
-      ai_run_id: context.aiRunId,
+      ai_run_id: context.aiRunId ?? null,
       skill_name: definition.name,
       skill_version: definition.version,
       risk: definition.risk,

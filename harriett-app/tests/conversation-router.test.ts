@@ -33,7 +33,7 @@ describe("routeConversationMessage", () => {
     expect(routeConversationMessage(message)).toMatchObject({
       lane: "fast",
       intent: "deal_lookup",
-      modelTier: "fast",
+      modelTier: "none",
       allowedToolNames: ["searchDeals"],
       quickBudgetMs: 6_000,
     });

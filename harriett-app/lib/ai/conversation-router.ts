@@ -74,7 +74,7 @@ export function routeConversationMessage(message: string): ConversationRoute {
       lane: "fast",
       intent: "deal_lookup",
       reasonCode: "deterministic_agent_deal_portfolio",
-      modelTier: "fast",
+      modelTier: "none",
       allowedToolNames: ["searchDeals"],
       acknowledgementPolicy: "typing_only",
       quickBudgetMs: 6_000,

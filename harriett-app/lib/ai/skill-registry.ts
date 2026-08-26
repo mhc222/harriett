@@ -24,6 +24,11 @@ import {
   SocialPostTypeSchema,
   SocialShareModeSchema,
 } from "@/lib/social-drafts";
+import {
+  AgentDealSearchInputSchema,
+  AgentDealSearchOutputSchema,
+  searchAgentDeals,
+} from "@/lib/agent-deals";
 
 export function defineSkill<I, O>(definition: SkillDefinition<I, O>): SkillDefinition<I, O> {
   return definition;
@@ -73,57 +78,15 @@ async function runSkill<I, O>(
   }
 }
 
-const SearchDealsInput = z.object({
-  query: z.string().trim().max(200).optional(),
-  includeClosed: z.boolean().default(false),
-  limit: z.number().int().min(1).max(20).default(10),
-});
-const SearchDealsOutput = z.object({
-  deals: z.array(z.object({
-    id: z.string().uuid(),
-    address: z.string(),
-    city: z.string().nullable(),
-    status: z.string(),
-    listPrice: z.number().nullable(),
-    salePrice: z.number().nullable(),
-    contractAcceptanceDate: z.string().nullable(),
-    closingDate: z.string().nullable(),
-  })),
-});
-
 const searchDealsSkill = defineSkill({
   name: "search_deals",
   version: "1.0.0",
   description: "Find the agent's active or historical deals by address or status.",
-  inputSchema: SearchDealsInput,
-  outputSchema: SearchDealsOutput,
+  inputSchema: AgentDealSearchInputSchema,
+  outputSchema: AgentDealSearchOutputSchema,
   risk: "read" as SkillRisk,
   approvalPolicy: () => "none",
-  execute: async (input, context) => {
-    let query = context.db
-      .from("deals")
-      .select("id, address, city, status, list_price, sale_price, contract_acceptance_date, closing_date")
-      .eq("office_id", context.officeId)
-      .eq("agent_id", context.agentId)
-      .order("updated_at", { ascending: false })
-      .limit(input.limit);
-    if (!input.includeClosed) query = query.not("status", "in", "(closed,cancelled)");
-    if (input.query) query = query.ilike("address", `%${input.query}%`);
-    const { data, error } = await query;
-    if (error) throw new Error(`deal search failed: ${error.message}`);
-    return {
-      deals: (data ?? []).map((deal) => ({
-        id: deal.id,
-        address: deal.address,
-        city: deal.city,
-        status: deal.status,
-        listPrice: deal.list_price == null ? null : Number(deal.list_price),
-        salePrice: deal.sale_price == null ? null : Number(deal.sale_price),
-        contractAcceptanceDate: deal.contract_acceptance_date,
-        closingDate: deal.closing_date,
-      })),
-    };
-  },
+  execute: (input, context) => searchAgentDeals(context.db, context, input),
 });
 
 const CreateFacebookDraftInput = z.object({
