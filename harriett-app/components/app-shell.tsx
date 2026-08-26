@@ -17,6 +17,7 @@ import {
   PenLine,
   PlugZap,
   Search,
+  Share2,
   UsersRound,
   X,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const systemNavigation = [
   { label: "Vendors", href: "/vendors", icon: UsersRound },
   { label: "Knowledge", href: "/knowledge", icon: BookOpenText },
   { label: "Writing", href: "/writing", icon: PenLine },
+  { label: "Social", href: "/social", icon: Share2 },
   { label: "Connections", href: "/connections", icon: PlugZap },
 ];
 

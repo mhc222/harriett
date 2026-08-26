@@ -26,7 +26,7 @@ export default async function ApprovalsPage() {
             {approval.status === "proposed" && <div className="approval-actions">
               <form action={`/api/actions/${approval.id}/decision`} method="post">
                 <input type="hidden" name="decision" value="approve" />
-                <button type="submit" className="primary-button"><Check size={15} />Approve</button>
+                <button type="submit" className="primary-button"><Check size={15} />{approval.skill_name === "facebook_publish_post" ? "Approve and post to Facebook" : "Approve"}</button>
               </form>
               <form action={`/api/actions/${approval.id}/decision`} method="post">
                 <input type="hidden" name="decision" value="reject" />

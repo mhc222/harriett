@@ -81,6 +81,7 @@ export function SignupForm({ inviteToken }: { inviteToken: string }) {
           </button>
           {error && <p className="field-error" role="alert">{error}</p>}
           <p className="login-footer"><Link href="/login" className="text-link">Return to sign in</Link></p>
+          <p className="login-legal-links"><Link href="/sms">Text messages</Link><Link href="/sms-terms">SMS terms</Link><Link href="/privacy">Privacy</Link></p>
         </form>}
       </div>
     </main>

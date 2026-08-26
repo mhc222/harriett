@@ -7,6 +7,7 @@ export function LegalPage({
   updated,
   privacyHref = "/privacy",
   smsTermsHref = "/sms-terms",
+  smsEnrollmentHref,
   children,
 }: {
   title: string;
@@ -14,6 +15,7 @@ export function LegalPage({
   updated: string;
   privacyHref?: string;
   smsTermsHref?: string;
+  smsEnrollmentHref?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -30,6 +32,11 @@ export function LegalPage({
             </span>
           </Link>
           <nav className="flex items-center gap-5 text-sm" style={{ color: "var(--ink-mid)" }}>
+            {smsEnrollmentHref && (
+              <Link href={smsEnrollmentHref} className="transition-colors hover:text-black">
+                SMS Enrollment
+              </Link>
+            )}
             <Link href={privacyHref} className="transition-colors hover:text-black">
               Privacy
             </Link>

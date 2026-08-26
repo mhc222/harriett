@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateObject, NoObjectGeneratedError } from "ai";
 import type { z } from "zod";
 import {
   fallbackConfigured,
@@ -50,12 +50,22 @@ export async function generateStructured<T>(opts: {
     return object;
   };
 
+  const callWithOutputRetry = async (tier: ModelTier) => {
+    try {
+      return await call(tier);
+    } catch (error) {
+      if (!NoObjectGeneratedError.isInstance(error)) throw error;
+      console.warn(`[ai] ${modelIdForTier(tier)} returned no valid object, retrying once`);
+      return call(tier);
+    }
+  };
+
   const primaryTier = opts.tier === "fast" ? "fast" : "standard";
   try {
-    return await call(primaryTier);
+    return await callWithOutputRetry(primaryTier);
   } catch (primaryError) {
     if (!fallbackConfigured()) throw primaryError;
     console.error(`[ai] ${modelIdForTier(primaryTier)} failed, using fallback`);
-    return await call("fallback");
+    return await callWithOutputRetry("fallback");
   }
 }

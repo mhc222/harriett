@@ -69,11 +69,11 @@ export function detectConsentIntent(body: string): {
 
 // Copy must match the A2P registration samples (docs/a2p-10dlc-checklist.md).
 export const STOP_CONFIRMATION =
-  "You've been unsubscribed from Harriett texts and won't receive further messages. Contact the office to re-enroll.";
+  "Pritchett-Moore Real Estate: You're unsubscribed from all Harriett text messages. No further messages will be sent. Text START to re-enroll.";
 export const HELP_RESPONSE =
-  "Harriett, Pritchett-Moore Real Estate's transaction assistant. For support, contact matt@pdlabs.xyz or call the office. Reply STOP to opt out of texts.";
+  "Harriett, Pritchett-Moore Real Estate's transaction assistant. For help, call 205-349-6535 or email relocation@pritchett-moore.com. Reply STOP to opt out.";
 export const START_CONFIRMATION =
-  "Pritchett-Moore Real Estate: You're all set. I'm Harriett, your transaction assistant. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out.";
+  "Pritchett-Moore Real Estate: You're enrolled in recurring Harriett agent text messages for transaction alerts, reminders, scheduling, and replies. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out.";
 
 // ---------------------------------------------------------------------------
 // Use-case drift guardrail. Outbound content must stay inside the registered

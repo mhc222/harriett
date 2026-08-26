@@ -15,6 +15,10 @@ import {
   upsertContractProperty,
   writeContractEvidence,
 } from "@/lib/deal-crm";
+import {
+  findPritchettMooreListing,
+  savePritchettMooreListing,
+} from "@/lib/integrations/pritchett-moore";
 
 // The parse pipeline: document -> DealFields -> deal row -> calendar events
 // -> checklist. Durable task; each step retries as a unit via Trigger.dev.
@@ -105,6 +109,42 @@ export const parseDeal = schemaTask({
       const { data: deal, error: dealError } = await dealQuery;
       if (dealError || !deal) throw new Error(`deal insert failed: ${dealError?.message}`);
       const dealId = deal.id as string;
+
+      if (!fields.contractAcceptanceDate && fields.mlsNumber) {
+        try {
+          const publicListing = await findPritchettMooreListing({ mlsNumber: fields.mlsNumber });
+          if (publicListing) {
+            await savePritchettMooreListing({
+              db,
+              officeId: ids.officeId,
+              propertyId,
+              metadata: publicListing,
+            });
+          }
+          await writeAudit(db, {
+            officeId: ids.officeId,
+            actor: "harriett",
+            agentId: ids.agentId,
+            dealId,
+            action: publicListing ? "property.public_listing_saved" : "property.public_listing_not_found",
+            payload: {
+              propertyId,
+              mlsNumber: fields.mlsNumber,
+              url: publicListing?.url ?? null,
+              imageFound: Boolean(publicListing?.primaryImageUrl),
+            },
+          });
+        } catch (listingError) {
+          await writeAudit(db, {
+            officeId: ids.officeId,
+            actor: "system",
+            agentId: ids.agentId,
+            dealId,
+            action: "property.public_listing_lookup_failed",
+            payload: { propertyId, mlsNumber: fields.mlsNumber, error: String(listingError) },
+          });
+        }
+      }
 
       const [contactCount, evidenceCount] = await Promise.all([
         syncContractContacts(crmContext, dealId, fields),

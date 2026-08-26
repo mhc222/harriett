@@ -52,6 +52,7 @@ export default function LoginPage() {
           </button>
           {error && <p className="field-error" role="alert">{error}</p>}
           <p className="login-footer">Have an invitation? <Link href="/signup" className="text-link">Set up your account</Link></p>
+          <p className="login-legal-links"><Link href="/sms">Text messages</Link><Link href="/sms-terms">SMS terms</Link><Link href="/privacy">Privacy</Link></p>
         </form>
       </div>
     </main>

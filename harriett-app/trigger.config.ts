@@ -31,6 +31,7 @@ export default defineConfig({
           "GOOGLE_OAUTH_REDIRECT_URI",
           "GOOGLE_GMAIL_PUBSUB_TOPIC",
           "GOOGLE_GMAIL_MONITORED_TO",
+          "META_GRAPH_API_VERSION",
         ]
           .filter((name) => process.env[name])
           .map((name) => ({ name, value: process.env[name]! })),
@@ -45,6 +46,7 @@ export default defineConfig({
           "RENTCAST_API_KEY",
           "BRIGHT_DATA_API_KEY",
           "GOOGLE_OAUTH_CLIENT_SECRET",
+          "META_APP_SECRET",
           "CONNECTION_ENCRYPTION_KEY",
         ]
           .filter((name) => process.env[name])

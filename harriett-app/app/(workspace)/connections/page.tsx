@@ -1,7 +1,8 @@
-import { CalendarDays, CircleAlert, CircleCheck, Link2, Mail, PlugZap, Unplug } from "lucide-react";
+import { CalendarDays, CircleAlert, CircleCheck, Link2, Mail, PlugZap, Share2, Unplug } from "lucide-react";
 import { z } from "zod";
 import { createUserClient } from "@/lib/db/server";
 import { googleIntegrationConfigured } from "@/lib/integrations/google";
+import { metaIntegrationConfigured } from "@/lib/integrations/meta";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,20 @@ const googleMessages: Record<string, string> = {
   monitoring_active: "Google is connected. Gmail and Calendar monitoring are active.",
 };
 
+const metaMessages: Record<string, string> = {
+  connected: "Facebook connected. The available Page was selected automatically.",
+  choose_page: "Facebook connected. Choose the Page Harriett should publish to.",
+  page_selected: "Facebook Page selected. Harriett can now prepare posts for your approval.",
+  disconnected: "Facebook disconnected and its stored credentials were removed.",
+  denied: "Facebook connection was canceled. No account access was stored.",
+  invalid_state: "The Facebook connection request expired. Start the connection again.",
+  session_expired: "Your Harriett session expired during Facebook setup. Sign in and reconnect.",
+  not_configured: "Facebook OAuth still needs its Meta app credentials before agents can connect.",
+  no_pages: "Meta did not return a Facebook Page you can publish to. Confirm that you have Page content access, then reconnect.",
+  token_expired: "Facebook access expired. Reconnect the account to continue publishing.",
+  callback_failed: "Facebook could not be connected. Please try again.",
+};
+
 const MonitoringStatusSchema = z.object({
   resource_type: z.string(),
   status: z.string(),
@@ -47,12 +62,19 @@ const ConnectionStatusSchema = z.object({
   updated_at: z.string(),
 });
 
+const MetaPageCapabilitySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  picture_url: z.string().nullable().optional(),
+});
+
 export default async function ConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string }>;
+  searchParams: Promise<{ google?: string; meta?: string }>;
 }) {
-  const status = (await searchParams).google;
+  const params = await searchParams;
+  const status = params.google;
   const db = await createUserClient();
   const { data: rawConnections, error: connectionsError } = await db.rpc("get_connection_statuses");
   if (connectionsError) {
@@ -66,9 +88,19 @@ export default async function ConnectionsPage({
   const parsedConnections = z.array(ConnectionStatusSchema).safeParse(rawConnections ?? []);
   const connections = parsedConnections.success ? parsedConnections.data : [];
   const googleConnection = connections?.find((connection) => connection.provider === "google");
+  const metaConnection = connections?.find((connection) => connection.provider === "meta");
   const googleCapabilities = (googleConnection?.capabilities ?? {}) as Record<string, unknown>;
   const googleConnected = googleConnection?.status === "connected";
   const configured = googleIntegrationConfigured();
+  const metaConfigured = metaIntegrationConfigured();
+  const metaCapabilities = (metaConnection?.capabilities ?? {}) as Record<string, unknown>;
+  const parsedMetaPages = z.array(MetaPageCapabilitySchema).safeParse(metaCapabilities.pages ?? []);
+  const metaPages = parsedMetaPages.success ? parsedMetaPages.data : [];
+  const selectedMetaPageId = typeof metaCapabilities.selected_page_id === "string"
+    ? metaCapabilities.selected_page_id
+    : null;
+  const selectedMetaPage = metaPages.find((page) => page.id === selectedMetaPageId);
+  const metaConnected = metaConnection?.status === "connected";
   const { data: rawMonitoring } = googleConnection
     ? await db
       .from("provider_subscriptions")
@@ -85,15 +117,16 @@ export default async function ConnectionsPage({
   const displayedStatus = status === "not_connected" && googleConnected
     ? (monitoringActive ? "monitoring_active" : "monitoring_queued")
     : status;
-  const otherConnections = connections?.filter((connection) => connection.provider !== "google") ?? [];
+  const otherConnections = connections?.filter((connection) => !["google", "meta"].includes(connection.provider)) ?? [];
   return (
     <div className="page-stack">
       <header className="page-heading"><div><p className="eyebrow">Connected systems</p><h1>Connections</h1><p className="page-intro">Provider health, available capabilities, and the last successful synchronization.</p></div></header>
       {displayedStatus && googleMessages[displayedStatus] && <p className="connection-notice" role="status">{googleMessages[displayedStatus]}</p>}
+      {params.meta && metaMessages[params.meta] && <p className="connection-notice" role="status">{metaMessages[params.meta]}</p>}
       <section aria-labelledby="connections-heading">
         <div className="section-heading"><div><p className="section-kicker">Integration health</p><h2 id="connections-heading">Systems</h2></div></div>
         <div className="record-list">
-          <article className="record-row" key={googleConnection?.id ?? "google"}>
+          <article className="record-row connection-record-row" key={googleConnection?.id ?? "google"}>
             <span className="record-primary">
               <strong>Google Gmail and Calendar</strong>
               <span>{typeof googleCapabilities.account_email === "string" ? googleCapabilities.account_email : "Connect an individual Google account"}</span>
@@ -121,6 +154,44 @@ export default async function ConnectionsPage({
                 </>
               ) : configured ? (
                 <a href="/api/integrations/google/connect" className="primary-button"><Link2 size={16} /> Connect Google</a>
+              ) : (
+                <button type="button" className="secondary-button" disabled>Setup required</button>
+              )}
+            </span>
+          </article>
+          <article className="record-row connection-record-row meta-connection-row" key={metaConnection?.id ?? "meta"}>
+            <span className="record-primary">
+              <strong>Facebook Page</strong>
+              <span>{selectedMetaPage?.name ?? (metaConnected ? "Choose a managed Facebook Page" : "Connect the Facebook account that manages your Page")}</span>
+            </span>
+            <span className="record-secondary">
+              <span><Share2 size={14} /> Agent-reviewed text and link posts</span>
+              <span><CircleCheck size={14} /> Publishing is limited to the selected Page</span>
+            </span>
+            <span className="connection-controls">
+              <span className={`status-label connection-${metaConnection?.status ?? "disconnected"}`}>
+                {metaConnected ? <CircleCheck size={12} /> : <PlugZap size={12} />}
+                {(metaConnection?.status ?? "disconnected").replaceAll("_", " ")}
+              </span>
+              {metaConnected ? (
+                <>
+                  {metaPages.length > 1 && (
+                    <form action="/api/integrations/meta/select-page" method="post" className="connection-page-form">
+                      <label className="sr-only" htmlFor="facebook-page">Facebook Page</label>
+                      <select id="facebook-page" name="pageId" defaultValue={selectedMetaPageId ?? ""} required>
+                        <option value="" disabled>Choose Page</option>
+                        {metaPages.map((page) => <option value={page.id} key={page.id}>{page.name}</option>)}
+                      </select>
+                      <button type="submit" className="secondary-button">Use Page</button>
+                    </form>
+                  )}
+                  {selectedMetaPage && <a href="/social" className="primary-button"><Share2 size={16} /> Create post</a>}
+                  <form action="/api/integrations/meta/disconnect" method="post">
+                    <button type="submit" className="secondary-button"><Unplug size={16} /> Disconnect</button>
+                  </form>
+                </>
+              ) : metaConfigured ? (
+                <a href="/api/integrations/meta/connect" className="primary-button"><Link2 size={16} /> Connect Facebook</a>
               ) : (
                 <button type="button" className="secondary-button" disabled>Setup required</button>
               )}

@@ -22,6 +22,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const db = await createUserClient();
   const auth = await authenticatedContext(db);
   if (!auth) return NextResponse.redirect(new URL("/login?next=%2Fapprovals", request.url), 303);
+  const { data: targetAction } = await db
+    .from("action_requests")
+    .select("skill_name,exact_payload")
+    .eq("id", actionId.data)
+    .eq("office_id", auth.officeId)
+    .maybeSingle();
   try {
     await decideGoogleAction({
       db,
@@ -33,8 +39,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       decision: decision.data.decision,
       reason: decision.data.reason,
     });
+    if (targetAction?.skill_name === "facebook_publish_post") {
+      const exactPayload = z.object({ artifactId: z.string().uuid() }).safeParse(targetAction.exact_payload);
+      const draft = exactPayload.success ? `&draft=${encodeURIComponent(exactPayload.data.artifactId)}` : "";
+      const outcome = decision.data.decision === "approve" ? "published=1" : "rejected=1";
+      return NextResponse.redirect(new URL(`/social?${outcome}${draft}`, request.url), 303);
+    }
     return NextResponse.redirect(new URL(`/approvals?decision=${decision.data.decision === "approve" ? "approved" : "rejected"}`, request.url), 303);
   } catch (error) {
+    if (targetAction?.skill_name === "facebook_publish_post") {
+      const message = error instanceof Error ? error.message : "Facebook publishing failed";
+      return NextResponse.redirect(new URL(`/social?error=${encodeURIComponent(message)}`, request.url), 303);
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : "approval failed" }, { status: 409 });
   }
 }

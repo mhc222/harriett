@@ -12,9 +12,10 @@ export default function HarriettTestSmsTermsPage() {
     <LegalPage
       eyebrow="SMS Terms"
       title="Harriett Test SMS Terms and Conditions"
-      updated="August 24, 2026"
+      updated="August 25, 2026"
       privacyHref="/harriett-test-privacy"
       smsTermsHref="/harriett-test-sms-terms"
+      smsEnrollmentHref="/harriett-test-sms"
     >
       <LegalSection title="Program Name">
         <p>Harriett Test SMS from Matthew Cronin.</p>
@@ -31,10 +32,14 @@ export default function HarriettTestSmsTermsPage() {
 
       <LegalSection title="Opt-In">
         <p>
-          Internal testers opt in directly with Matthew Cronin before receiving Harriett test SMS messages. Consent may be collected verbally or by direct written confirmation in a private test workflow.
+          Internal testers opt in by visiting the public enrollment page at{" "}
+          <Link href="/harriett-test-sms" className="font-medium underline">
+            /harriett-test-sms
+          </Link>{" "}
+          and texting START to (205) 526-3026.
         </p>
         <p>
-          The consent language is: "I agree to receive Harriett test SMS messages from Matthew Cronin at the phone number I provide. Message frequency varies. Message and data rates may apply. Reply STOP to opt out. Reply HELP for help."
+          The enrollment page explains that by texting START, a tester agrees to receive recurring automated, low-volume Harriett test and development SMS messages from Matthew Cronin. It also states that message frequency varies, message and data rates may apply, and testers may reply STOP to opt out or HELP for help.
         </p>
         <p>Opt-in is optional.</p>
       </LegalSection>

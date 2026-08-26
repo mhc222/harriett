@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { canApproveAction } from "@/lib/ai/policy";
 import { writeAudit } from "@/lib/audit";
+import { executeFacebookDelete, executeFacebookPublish } from "@/lib/facebook-action";
 import type { executeGoogleAction } from "@/trigger/google-actions";
 
 export async function decideGoogleAction(input: {
@@ -53,6 +54,7 @@ export async function decideGoogleAction(input: {
   }
 
   const now = new Date().toISOString();
+  const auditNamespace = action.skill_name.startsWith("facebook_") ? "facebook" : "google";
   if (input.decision === "reject") {
     const { data: rejected, error: rejectError } = await input.db
       .from("action_requests")
@@ -67,7 +69,7 @@ export async function decideGoogleAction(input: {
       actor: "user",
       actorId: input.actorUserId,
       agentId: input.actorAgentId,
-      action: "google.action_rejected",
+      action: `${auditNamespace}.action_rejected`,
       payload: { actionRequestId: action.id, action: action.skill_name, reason: input.reason ?? null },
     });
     return { actionRequestId: action.id, status: "rejected" as const };
@@ -86,9 +88,17 @@ export async function decideGoogleAction(input: {
     actor: "user",
     actorId: input.actorUserId,
     agentId: input.actorAgentId,
-    action: "google.action_approved",
+    action: `${auditNamespace}.action_approved`,
     payload: { actionRequestId: action.id, action: action.skill_name },
   });
+  if (action.skill_name === "facebook_publish_post") {
+    await executeFacebookPublish(action.id);
+    return { actionRequestId: action.id, status: "approved" as const };
+  }
+  if (action.skill_name === "facebook_delete_post") {
+    await executeFacebookDelete(action.id);
+    return { actionRequestId: action.id, status: "approved" as const };
+  }
   const run = await tasks.trigger<typeof executeGoogleAction>(
     "execute-google-action",
     { actionRequestId: action.id },

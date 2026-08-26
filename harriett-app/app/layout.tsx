@@ -15,7 +15,10 @@ const libreCaslon = Libre_Caslon_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Harriett",
+  title: {
+    default: "Harriett",
+    template: "%s",
+  },
   description: "Transaction assistant for Pritchett-Moore Real Estate",
 };
 

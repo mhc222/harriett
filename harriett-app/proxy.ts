@@ -33,6 +33,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/auth") ||
+    pathname === "/sms" ||
+    pathname.startsWith("/sms-terms") ||
+    pathname.startsWith("/privacy") ||
     pathname.startsWith("/api/webhooks");
 
   if (!user && !isPublic) {

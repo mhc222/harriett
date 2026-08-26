@@ -15,6 +15,7 @@ export default function HarriettTestPrivacyPage() {
       updated="August 24, 2026"
       privacyHref="/harriett-test-privacy"
       smsTermsHref="/harriett-test-sms-terms"
+      smsEnrollmentHref="/harriett-test-sms"
     >
       <LegalSection title="Who This Policy Covers">
         <p>
@@ -56,6 +57,12 @@ export default function HarriettTestPrivacyPage() {
           Message frequency varies. Message and data rates may apply. Reply STOP to opt out or HELP for help. The Harriett Test SMS Terms are available at{" "}
           <Link href="/harriett-test-sms-terms" className="font-medium underline">
             /harriett-test-sms-terms
+          </Link>.
+        </p>
+        <p>
+          The public enrollment disclosure and START instructions are available at{" "}
+          <Link href="/harriett-test-sms" className="font-medium underline">
+            /harriett-test-sms
           </Link>.
         </p>
       </LegalSection>
