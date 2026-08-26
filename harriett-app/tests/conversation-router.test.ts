@@ -3,6 +3,7 @@ import {
   deterministicReflexResponse,
   routeConversationMessage,
 } from "@/lib/ai/conversation-router";
+import { conversationFastLaneEnabled } from "@/lib/conversation-gateway";
 
 describe("routeConversationMessage", () => {
   it.each([
@@ -65,5 +66,26 @@ describe("routeConversationMessage", () => {
   it("creates deterministic human copy only for exact reflexes", () => {
     expect(deterministicReflexResponse("Hi Harriett")).toBe("Hi. What can I help you with?");
     expect(deterministicReflexResponse("Hi Harriett, check my listings")).toBeNull();
+  });
+});
+
+describe("conversationFastLaneEnabled", () => {
+  it("requires both the master flag and an explicit agent allowlist", () => {
+    const previousEnabled = process.env.CONVERSATION_FAST_LANE_ENABLED;
+    const previousAgents = process.env.CONVERSATION_FAST_LANE_AGENT_IDS;
+    process.env.CONVERSATION_FAST_LANE_ENABLED = "true";
+    process.env.CONVERSATION_FAST_LANE_AGENT_IDS = "agent-one, agent-two";
+    try {
+      expect(conversationFastLaneEnabled("agent-one")).toBe(true);
+      expect(conversationFastLaneEnabled("agent-three")).toBe(false);
+      expect(conversationFastLaneEnabled()).toBe(false);
+      process.env.CONVERSATION_FAST_LANE_ENABLED = "false";
+      expect(conversationFastLaneEnabled("agent-one")).toBe(false);
+    } finally {
+      if (previousEnabled === undefined) delete process.env.CONVERSATION_FAST_LANE_ENABLED;
+      else process.env.CONVERSATION_FAST_LANE_ENABLED = previousEnabled;
+      if (previousAgents === undefined) delete process.env.CONVERSATION_FAST_LANE_AGENT_IDS;
+      else process.env.CONVERSATION_FAST_LANE_AGENT_IDS = previousAgents;
+    }
   });
 });

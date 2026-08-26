@@ -244,7 +244,7 @@ export async function POST(request: Request) {
   // failure falls through to the existing durable task. sendAgentMessage()
   // enforces one reply per inbound message, so the fallback cannot duplicate
   // a provider-accepted response.
-  if (conversationFastLaneEnabled() && mediaCount === 0) {
+  if (conversationFastLaneEnabled(agent.id) && mediaCount === 0) {
     try {
       const deterministic = await tryDeterministicConversationTurn(db, {
         officeId: agent.office_id,

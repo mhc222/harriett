@@ -11,8 +11,13 @@ import {
 } from "@/lib/conversation-trace";
 import { sendAgentMessage, type AgentMessagingChannel } from "@/lib/sms";
 
-export function conversationFastLaneEnabled(): boolean {
-  return process.env.CONVERSATION_FAST_LANE_ENABLED === "true";
+export function conversationFastLaneEnabled(agentId?: string): boolean {
+  if (process.env.CONVERSATION_FAST_LANE_ENABLED !== "true" || !agentId) return false;
+  const allowedAgentIds = (process.env.CONVERSATION_FAST_LANE_AGENT_IDS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return allowedAgentIds.includes(agentId);
 }
 
 export async function tryDeterministicConversationTurn(
