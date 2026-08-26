@@ -1,4 +1,4 @@
-import { generateText, stepCountIs, type LanguageModel, type ModelMessage } from "ai";
+import { ToolLoopAgent, stepCountIs, type LanguageModel, type ModelMessage } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -431,33 +431,36 @@ export async function runAgentTurn(
       timeZone: officeTimeZone(agent),
     });
     const forceFirstTool = requiresFirstStepTool(intent.intent);
-    const execute = (model: LanguageModel, tier: "standard" | "fallback") => generateText({
-      model,
-      instructions,
-      messages,
-      tools: route.sources.includes("web")
-        ? {
-            ...runtimeTools,
-            searchWeb: tier === "fallback"
-              ? openai.tools.webSearch({})
-              : anthropic.tools.webSearch_20250305({
-                  maxUses: 4,
-                  userLocation: {
-                    type: "approximate",
-                    city: "Tuscaloosa",
-                    region: "Alabama",
-                    country: "US",
-                    timezone: officeTimeZone(agent),
-                  },
-                }),
-          }
-        : runtimeTools,
-      prepareStep: ({ stepNumber }) => ({
-        toolChoice: stepNumber === 0 && forceFirstTool ? "required" : "auto",
-      }),
-      stopWhen: stepCountIs(6),
-      maxOutputTokens: input.channel === "sms" || input.channel === "whatsapp" ? 600 : 1_800,
-    });
+    const execute = (model: LanguageModel, tier: "standard" | "fallback") => {
+      const harriettAgent = new ToolLoopAgent({
+        id: "harriett-transaction-assistant",
+        model,
+        instructions,
+        tools: route.sources.includes("web")
+          ? {
+              ...runtimeTools,
+              searchWeb: tier === "fallback"
+                ? openai.tools.webSearch({})
+                : anthropic.tools.webSearch_20250305({
+                    maxUses: 4,
+                    userLocation: {
+                      type: "approximate",
+                      city: "Tuscaloosa",
+                      region: "Alabama",
+                      country: "US",
+                      timezone: officeTimeZone(agent),
+                    },
+                  }),
+            }
+          : runtimeTools,
+        prepareStep: ({ stepNumber }) => ({
+          toolChoice: stepNumber === 0 && forceFirstTool ? "required" : "auto",
+        }),
+        stopWhen: stepCountIs(6),
+        maxOutputTokens: input.channel === "sms" || input.channel === "whatsapp" ? 600 : 1_800,
+      });
+      return harriettAgent.generate({ messages });
+    };
 
     let result;
     let modelTier: "standard" | "fallback" = "standard";
