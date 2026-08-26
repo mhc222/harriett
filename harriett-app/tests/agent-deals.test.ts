@@ -24,11 +24,13 @@ describe("formatAgentDealPortfolio", () => {
         contractAcceptanceDate: "2026-04-30",
         closingDate: "2026-06-05",
       },
-    ]);
+    ], new Date("2026-08-26T12:00:00Z"));
 
     expect(result).toContain("1 active listing and 1 file under contract");
     expect(result).toContain("11417 Woodbank Ridge, Tuscaloosa, Active listing, $998,500");
-    expect(result).toContain("604 2nd St NW, Gordo, Under contract, $208,000, closing Jun 5, 2026");
+    expect(result).toContain(
+      "604 2nd St NW, Gordo, Under contract, $208,000, recorded closing Jun 5, 2026, status needs review"
+    );
   });
 
   it("states plainly when there are no current records", () => {

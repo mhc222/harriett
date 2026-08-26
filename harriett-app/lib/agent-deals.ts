@@ -88,7 +88,7 @@ function shortDate(value: string | null): string | null {
   }).format(parsed);
 }
 
-export function formatAgentDealPortfolio(deals: AgentDealSummary[]): string {
+export function formatAgentDealPortfolio(deals: AgentDealSummary[], now = new Date()): string {
   if (!deals.length) {
     return "I don’t see any current transaction records assigned to you.";
   }
@@ -107,7 +107,16 @@ export function formatAgentDealPortfolio(deals: AgentDealSummary[]): string {
     const location = deal.city ? `${deal.address}, ${deal.city}` : deal.address;
     const price = currency(deal.status === "listing_active" ? deal.listPrice : deal.salePrice ?? deal.listPrice);
     const closing = shortDate(deal.closingDate);
-    const details = [statusLabel(deal.status), price, closing ? `closing ${closing}` : null].filter(Boolean);
+    const closingInstant = deal.closingDate ? new Date(`${deal.closingDate}T23:59:59Z`) : null;
+    const hasPastClosingDate = closingInstant
+      ? closingInstant.getTime() < now.getTime() && !["closed", "cancelled"].includes(deal.status)
+      : false;
+    const closingDetail = closing
+      ? hasPastClosingDate
+        ? `recorded closing ${closing}, status needs review`
+        : `closing ${closing}`
+      : null;
+    const details = [statusLabel(deal.status), price, closingDetail].filter(Boolean);
     return `- ${location}${details.length ? `, ${details.join(", ")}` : ""}`;
   });
   return `${opening}\n\n${lines.join("\n")}`;
