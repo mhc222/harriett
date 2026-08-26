@@ -5,6 +5,13 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
+import { deterministicReflexResponse, routeConversationMessage } from "@/lib/ai/conversation-router";
+import {
+  AgentDealSearchInputSchema,
+  AgentDealSearchOutputSchema,
+  formatAgentDealPortfolio,
+  searchAgentDeals,
+} from "@/lib/agent-deals";
 import { authenticatedContext } from "@/lib/auth-context";
 import { createUserClient } from "@/lib/db/server";
 import type { processAgentPwa } from "@/trigger/process-agent-pwa";
@@ -87,10 +94,27 @@ export async function POST(request: Request) {
     return Response.json({ error: inboundError?.message ?? "Could not save message" }, { status: 500 });
   }
 
+  let immediateResponse = deterministicReflexResponse(body);
+  const route = routeConversationMessage(body);
+  if (
+    !immediateResponse
+    && route.lane === "fast"
+    && route.reasonCode === "deterministic_agent_deal_portfolio"
+  ) {
+    const searchInput = AgentDealSearchInputSchema.parse({ includeClosed: false, limit: 20 });
+    const result = await searchAgentDeals(db, {
+      officeId: auth.officeId,
+      agentId: auth.agentId,
+    }, searchInput);
+    immediateResponse = formatAgentDealPortfolio(
+      AgentDealSearchOutputSchema.parse(result).deals,
+    );
+  }
+  const displayedAt = immediateResponse ? new Date().toISOString() : undefined;
   const originalMessages = parsed.data.messages as UIMessage[];
   await tasks.trigger<typeof processAgentPwa>(
     "process-agent-pwa",
-    { messageId: inbound.id },
+    { messageId: inbound.id, displayedAt },
     {
       idempotencyKey: ["pwa-message", inbound.id],
       idempotencyKeyTTL: "7d",
@@ -103,6 +127,12 @@ export async function POST(request: Request) {
     execute: async ({ writer }) => {
       const textId = crypto.randomUUID();
       try {
+        if (immediateResponse) {
+          writer.write({ type: "text-start", id: textId });
+          writer.write({ type: "text-delta", id: textId, delta: immediateResponse });
+          writer.write({ type: "text-end", id: textId });
+          return;
+        }
         let response: string | null = null;
         for (let attempt = 0; attempt < 240; attempt += 1) {
           if (request.signal.aborted) return;

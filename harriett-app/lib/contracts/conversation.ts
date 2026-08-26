@@ -66,6 +66,7 @@ export const ConversationEventNameSchema = z.enum([
   "tool.completed",
   "tool.failed",
   "workflow.enqueued",
+  "reply.displayed",
   "reply.created",
   "provider.accepted",
   "provider.delivered",

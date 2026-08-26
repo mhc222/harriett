@@ -19,8 +19,11 @@ import type { processAgentMemory } from "@/trigger/process-agent-memory";
 
 export const processAgentPwa = schemaTask({
   id: "process-agent-pwa",
-  schema: z.object({ messageId: z.string().uuid() }),
-  run: async ({ messageId }) => {
+  schema: z.object({
+    messageId: z.string().uuid(),
+    displayedAt: z.string().datetime().optional(),
+  }),
+  run: async ({ messageId, displayedAt }) => {
     const db = createServiceClient();
     const { data: inbound, error: inboundError } = await db
       .from("messages")
@@ -63,6 +66,19 @@ export const processAgentPwa = schemaTask({
         idempotencyKey: `pwa-message:${messageId}`,
       });
       turnId = trace.id;
+      if (displayedAt) {
+        const { error: displayedError } = await db
+          .from("conversation_turns")
+          .update({ first_token_at: displayedAt, updated_at: new Date().toISOString() })
+          .eq("id", trace.id);
+        if (displayedError) throw new Error(`PWA display timestamp failed: ${displayedError.message}`);
+        await recordConversationEvent(db, {
+          officeId: inbound.office_id,
+          turnId: trace.id,
+          event: "reply.displayed",
+          payload: { channel: "pwa", displayedAt, delivery: "immediate_web_response" },
+        });
+      }
       await updateConversationTrace(db, {
         turnId: trace.id,
         status: "running",
@@ -207,4 +223,3 @@ export const processAgentPwa = schemaTask({
     }
   },
 });
-
