@@ -163,7 +163,7 @@ export function finalizeRealEstateSocialDraft(rawInput: z.input<typeof FinalizeS
     throw new Error("the draft contains housing language that requires Fair Housing review");
   }
 
-  let message = input.message.trim();
+  let message = input.message.trim().replace(/\s*—\s*/g, " - ");
   const notes = [
     "Draft uses the licensed brokerage name.",
     "Draft passed Harriett's focused Fair Housing language screen.",

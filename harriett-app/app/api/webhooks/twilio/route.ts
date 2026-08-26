@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
 import { createServiceClient } from "@/lib/db/server";
 import { writeAudit } from "@/lib/audit";
+import { processingAcknowledgement } from "@/lib/ai/message-format";
 import type { processAgentSms } from "@/trigger/process-agent-sms";
 import {
   type AgentMessagingChannel,
@@ -234,6 +235,15 @@ export async function POST(request: Request) {
     payload: { messageId: msg.id, sid: messageSid, mediaCount },
   });
 
+  const acknowledgement = processingAcknowledgement(body);
+  await writeAudit(db, {
+    officeId: agent.office_id,
+    actor: "harriett",
+    agentId: agent.id,
+    action: `${channel}.processing_acknowledged`,
+    payload: { inboundMessageId: msg.id, body: acknowledgement, delivery: "twiml" },
+  });
+
   await tasks.trigger<typeof processAgentSms>(
     "process-agent-sms",
     { messageId: msg.id },
@@ -244,5 +254,5 @@ export async function POST(request: Request) {
     }
   );
 
-  return twiml(undefined, channel);
+  return twiml(acknowledgement, channel);
 }

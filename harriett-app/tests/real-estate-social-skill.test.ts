@@ -38,6 +38,20 @@ describe("real estate social creation skill", () => {
     expect(result.message).toContain("Pritchett-Moore Real Estate, LLC");
   });
 
+  it("normalizes em dashes out of generated social copy", () => {
+    const result = finalizeRealEstateSocialDraft({
+      message: "Room to grow—five bedrooms and four bathrooms.",
+      shareMode: "link_preview",
+      officialListingUrl: officialUrl,
+      postingAgentName: "Gail Butler",
+      listingAgentName: "Gail Butler",
+      isTestData: false,
+    });
+
+    expect(result.message).not.toContain("—");
+    expect(result.message).toContain("grow - five");
+  });
+
   it("stops focused Fair Housing risk language before the review artifact is saved", () => {
     expect(() => finalizeRealEstateSocialDraft({
       message: "This safe neighborhood is perfect for families.",

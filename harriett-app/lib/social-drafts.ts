@@ -184,6 +184,7 @@ Return a short fact-check list naming every material fact the agent should confi
     listingAgentName,
     isTestData,
   });
+  const title = generated.title.replace(/\s*—\s*/g, " - ");
 
   const propertyId = typeof deal?.property_id === "string" ? deal.property_id : null;
   const dealId = typeof deal?.id === "string" ? deal.id : null;
@@ -193,7 +194,7 @@ Return a short fact-check list naming every material fact the agent should confi
     property_id: propertyId,
     deal_id: dealId,
     kind: "social_post",
-    title: generated.title,
+    title,
     status: "draft",
     version: 1,
     plain_text: finalized.message,
@@ -245,7 +246,7 @@ Return a short fact-check list naming every material fact the agent should confi
       : "http://localhost:3000");
   return {
     artifactId: artifact.id,
-    title: generated.title,
+    title,
     message: finalized.message,
     reviewUrl: `${appUrl}/social?draft=${artifact.id}`,
     primaryImageUrl: listing?.primaryImageUrl ?? null,

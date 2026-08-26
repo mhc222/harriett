@@ -282,7 +282,7 @@ async function fetchDocumentCitations(
     .eq("ai_run_id", runId)
     .in("skill_name", ["search_deal_document", "review_full_deal_document"])
     .eq("status", "completed")
-    .order("created_at", { ascending: true });
+    .order("started_at", { ascending: true });
   if (error) throw new Error(`document citation load failed: ${error.message}`);
   const citations: KnowledgeCitation[] = [];
   for (const row of data ?? []) {

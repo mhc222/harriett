@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isFacebookPublishApproval,
+  processingAcknowledgement,
 } from "@/lib/ai/message-format";
 
 describe("formatAgentMessageForChannel", () => {
@@ -28,8 +30,22 @@ describe("formatAgentMessageForChannel", () => {
 
     expect(formatted).toContain("Nothing has been posted yet");
     expect(formatted).toContain("five bedrooms");
-    expect(formatted).toContain("Review, edit, and post:");
+    expect(formatted).toContain("Reply POST IT");
     expect(formatted).toContain("/social?draft=");
     expect(formatted.length).toBeLessThanOrEqual(1200);
+  });
+
+  it("recognizes explicit conversational Facebook approval without matching draft requests", () => {
+    expect(isFacebookPublishApproval("post it")).toBe(true);
+    expect(isFacebookPublishApproval("Yes, go ahead and publish that to Facebook.")).toBe(true);
+    expect(isFacebookPublishApproval("Make a Facebook post for Woodbank Ridge")).toBe(false);
+    expect(isFacebookPublishApproval("What did I post yesterday?")).toBe(false);
+  });
+
+  it("returns deterministic progress copy without a model call", () => {
+    expect(processingAcknowledgement("Make a Facebook post for Woodbank Ridge"))
+      .toContain("working on that");
+    expect(processingAcknowledgement("post it"))
+      .toContain("checking that draft");
   });
 });
