@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { ArrowUp, Check, CircleStop, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowUp, CircleStop, RotateCcw, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -10,12 +10,6 @@ const suggestions = [
   "What listings do I have?",
   "What needs my attention today?",
   "Draft a Facebook post for my newest listing.",
-];
-
-const workingSteps = [
-  "Looking at what you asked",
-  "Checking your Harriett records",
-  "Putting the answer together",
 ];
 
 function messageText(message: UIMessage): string {
@@ -33,7 +27,6 @@ export function HarriettChat({
   initialMessages: UIMessage[];
 }) {
   const [input, setInput] = useState("");
-  const [workingStep, setWorkingStep] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
   const {
@@ -55,20 +48,11 @@ export function HarriettChat({
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isWorking]);
 
-  useEffect(() => {
-    if (!isWorking) return;
-    const interval = window.setInterval(() => {
-      setWorkingStep((step) => Math.min(step + 1, workingSteps.length - 1));
-    }, 2200);
-    return () => window.clearInterval(interval);
-  }, [isWorking]);
-
   async function submit(event: FormEvent) {
     event.preventDefault();
     const text = input.trim();
     if (!text || isWorking) return;
     clearError();
-    setWorkingStep(0);
     setInput("");
     await sendMessage({ text });
   }
@@ -76,7 +60,6 @@ export function HarriettChat({
   async function submitSuggestion(suggestion: string) {
     if (isWorking) return;
     clearError();
-    setWorkingStep(0);
     await sendMessage({ text: suggestion });
   }
 
@@ -149,18 +132,14 @@ export function HarriettChat({
           )}
 
           {isWorking && (
-            <div className="chat-working" role="status">
-              <span className="chat-working-orb" aria-hidden="true" />
-              <div>
-                <strong>Harriett is working on it</strong>
-                <ol>
-                  {workingSteps.map((step, index) => (
-                    <li key={step} className={index === workingStep ? "active" : index < workingStep ? "done" : ""}>
-                      {index < workingStep ? <Check size={13} aria-hidden="true" /> : <span>{index + 1}</span>}
-                      {step}
-                    </li>
-                  ))}
-                </ol>
+            <div className="chat-typing-row" role="status" aria-label="Harriett is typing">
+              <span className="chat-message-avatar" aria-hidden="true">
+                <Image src="/harriett-logo.png" alt="" width={48} height={48} />
+              </span>
+              <div className="chat-typing-bubble" aria-hidden="true">
+                <i />
+                <i />
+                <i />
               </div>
               <button type="button" onClick={() => stop()} aria-label="Stop Harriett">
                 <CircleStop size={18} aria-hidden="true" />

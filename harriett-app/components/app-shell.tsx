@@ -35,7 +35,7 @@ interface AppShellProps {
 
 const primaryNavigation = [
   { label: "Today", href: "/", icon: Home },
-  { label: "Harriett", href: "/chat", icon: MessageCircle },
+  { label: "Chat", href: "/chat", icon: MessageCircle },
   { label: "Pipeline", href: "/pipeline", icon: BriefcaseBusiness },
   { label: "Contacts", href: "/contacts", icon: ContactRound },
   { label: "Research", href: "/research", icon: Search },
