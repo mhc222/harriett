@@ -47,4 +47,4 @@ This is the active build plan. Contract, scope, and meeting documents remain his
 - The four production schema migrations above are applied and verified on the Harriett Supabase project.
 - Trigger.dev production version `20260827.1` is deployed with all 16 project tasks detected.
 - Anonymous access to the direct PWA completion function and conversation context is removed. The PWA function remains available only to signed-in callers and validates tenant ownership inside the transaction.
-- PR 1 and PR 2 are mergeable with CI and Vercel checks passing.
+- PR 1 and PR 2 are merged into `main`. The merged release passed CI, both Vercel production deployments are ready, and the post-deploy error scans are empty.
