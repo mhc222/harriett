@@ -2,6 +2,7 @@ import {
   ConversationRouteSchema,
   type ConversationRoute,
 } from "@/lib/contracts/conversation";
+import { isFacebookDraftCommand } from "@/lib/ai/message-format";
 
 const GREETING = /^(?:(?:hi|hello|hey)(?:\s+(?:there|harriett))?|howdy|(?:good\s+)?(?:morning|afternoon|evening))(?:\s+harriett)?[.!?]*$/i;
 const THANKS = /^(?:thanks|thank\s+you|appreciate\s+it|got\s+it)[.!?]*$/i;
@@ -95,7 +96,7 @@ export function routeConversationMessage(message: string): ConversationRoute {
       quickBudgetMs: 6_000,
     });
   }
-  if (DURABLE_ACTION.test(trimmed)) {
+  if (isFacebookDraftCommand(trimmed) || DURABLE_ACTION.test(trimmed)) {
     return route({
       lane: "durable",
       intent: "external_or_long_action",

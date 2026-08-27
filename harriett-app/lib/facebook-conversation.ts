@@ -99,7 +99,7 @@ export async function createFacebookDraftFromConversation(input: {
     throw new Error(`I found more than one possible transaction. Tell me which property you mean: ${choices}.`);
   }
 
-  return createFacebookDraft({
+  const draft = await createFacebookDraft({
     db: input.db,
     officeId: input.officeId,
     agentId: input.agentId,
@@ -109,6 +109,7 @@ export async function createFacebookDraftFromConversation(input: {
     shareMode: "link_preview",
     dealId: selected.id,
   });
+  return { ...draft, dealId: selected.id };
 }
 
 export async function deleteLatestFacebookPostFromConversation(input: {

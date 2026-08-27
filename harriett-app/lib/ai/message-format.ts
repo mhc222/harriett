@@ -71,13 +71,25 @@ export function isFacebookDeleteCommand(body: string, hasRecentFacebookPostConte
     && /^(?:please\s+)?(?:delete|remove)\s+(?:it|that|this)|^(?:please\s+)?(?:take|pull)\s+(?:it|that|this)\s+down$/i.test(normalized);
 }
 
+export function isContactCardCommand(body: string): boolean {
+  const normalized = body.trim().replace(/[.!?]+$/, "").trim();
+  return /^(?:(?:please|can you|would you|will you)\s+)?(?:send|text|share|give)\s+(?:me\s+)?(?:your|harriett(?:'s)?)\s+(?:contact\s+)?card$/i.test(normalized)
+    || /^(?:how do i|let me)\s+(?:save|add)\s+(?:you|harriett)(?:\s+(?:as a contact|to my contacts))?$/i.test(normalized);
+}
+
 type ProcessingCategory = "facebook_publish" | "facebook_draft" | "document_review" | "research" | "artifact";
 
 export interface ProcessingAcknowledgementDecision {
   message: string | null;
   category: ProcessingCategory | null;
-  reason: "long_task" | "recent_acknowledgement" | "quick_task";
+  reason: "long_task" | "deadline_fallback" | "deadline_not_reached" | "quick_task";
 }
+
+const GENERIC_DEADLINE_ACKNOWLEDGEMENTS = [
+  "One sec, I’m checking that now.",
+  "I’m on it. I’ll bring the answer back here.",
+  "Give me a moment to work through that. I’ll reply here when it’s ready.",
+];
 
 const ACKNOWLEDGEMENTS: Record<ProcessingCategory, string[]> = {
   facebook_publish: [
@@ -136,19 +148,28 @@ export function processingAcknowledgement(input: {
   body: string;
   seed?: string;
   hasAttachments?: boolean;
-  recentlyAcknowledged?: boolean;
+  deadlineExpired?: boolean;
   previousMessage?: string | null;
 }): ProcessingAcknowledgementDecision {
   const category = processingCategory(input.body, input.hasAttachments ?? false);
-  if (!category) return { message: null, category: null, reason: "quick_task" };
-  if (input.recentlyAcknowledged) {
-    return { message: null, category, reason: "recent_acknowledgement" };
+  if (!input.deadlineExpired) {
+    return {
+      message: null,
+      category,
+      reason: category ? "deadline_not_reached" : "quick_task",
+    };
   }
-  const options = ACKNOWLEDGEMENTS[category];
+  const options = category
+    ? ACKNOWLEDGEMENTS[category]
+    : GENERIC_DEADLINE_ACKNOWLEDGEMENTS;
   const preferredIndex = stableIndex(input.seed ?? input.body, options.length);
   const preferred = options[preferredIndex];
   const message = preferred === input.previousMessage
     ? options[(preferredIndex + 1) % options.length]
     : preferred;
-  return { message, category, reason: "long_task" };
+  return {
+    message,
+    category,
+    reason: category ? "long_task" : "deadline_fallback",
+  };
 }

@@ -5,6 +5,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { ArrowUp, CircleStop, RotateCcw, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createBrowser } from "@/lib/db/browser";
 
 const suggestions = [
   "What listings do I have?",
@@ -35,9 +36,11 @@ function channelLabel(channel: "pwa" | "sms" | "whatsapp"): string | null {
 }
 
 export function HarriettChat({
+  agentId,
   agentName,
   initialMessages,
 }: {
+  agentId: string;
   agentName: string;
   initialMessages: UIMessage[];
 }) {
@@ -65,10 +68,10 @@ export function HarriettChat({
   }, [messages, isWorking]);
 
   useEffect(() => {
-    if (isWorking) return;
     let cancelled = false;
 
     async function syncConversation() {
+      if (isWorking) return;
       const response = await fetch("/api/chat", { cache: "no-store" }).catch(() => null);
       if (!response?.ok || cancelled) return;
       const payload = await response.json().catch(() => null) as { messages?: UIMessage[] } | null;
@@ -77,13 +80,30 @@ export function HarriettChat({
       }
     }
 
-    void syncConversation();
-    const interval = window.setInterval(() => void syncConversation(), 4_000);
+    const db = createBrowser();
+    const channel = db
+      .channel(`harriett-messages:${agentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `agent_id=eq.${agentId}`,
+        },
+        () => void syncConversation()
+      )
+      .subscribe();
+    const syncWhenVisible = () => {
+      if (document.visibilityState === "visible") void syncConversation();
+    };
+    document.addEventListener("visibilitychange", syncWhenVisible);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", syncWhenVisible);
+      void db.removeChannel(channel);
     };
-  }, [isWorking, setMessages]);
+  }, [agentId, isWorking, setMessages]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

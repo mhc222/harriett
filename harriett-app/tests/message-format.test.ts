@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isContactCardCommand,
   isFacebookDeleteCommand,
   isFacebookDraftCommand,
   isFacebookPublishApproval,
@@ -58,34 +59,58 @@ describe("formatAgentMessageForChannel", () => {
     expect(isFacebookDeleteCommand("delete it", true)).toBe(true);
   });
 
+  it("recognizes requests for Harriett's contact card", () => {
+    expect(isContactCardCommand("Send me your contact card")).toBe(true);
+    expect(isContactCardCommand("Please share Harriett's card.")).toBe(true);
+    expect(isContactCardCommand("How do I save you as a contact?")).toBe(true);
+    expect(isContactCardCommand("Send me the contract")).toBe(false);
+  });
+
   it("returns deterministic progress copy without a model call", () => {
-    expect(processingAcknowledgement({ body: "Make a Facebook post for Woodbank Ridge", seed: "one" }))
+    expect(processingAcknowledgement({
+      body: "Make a Facebook post for Woodbank Ridge",
+      seed: "one",
+      deadlineExpired: true,
+    }))
       .toMatchObject({ category: "facebook_draft", reason: "long_task" });
     expect(processingAcknowledgement({
       body: "Can you make a Facebook listing for Woodbank? New listing",
       seed: "listing-wording",
+      deadlineExpired: true,
     })).toMatchObject({ category: "facebook_draft", reason: "long_task" });
-    expect(processingAcknowledgement({ body: "post it", seed: "two" }))
+    expect(processingAcknowledgement({ body: "post it", seed: "two", deadlineExpired: true }))
       .toMatchObject({ category: "facebook_publish", reason: "long_task" });
   });
 
-  it("skips progress chatter for quick conversation and recent back-and-forth", () => {
+  it("stays quiet before the task-specific response deadline", () => {
     expect(processingAcknowledgement({ body: "What time is closing?" }))
       .toEqual({ message: null, category: null, reason: "quick_task" });
     expect(processingAcknowledgement({
       body: "Make a Facebook post for Woodbank Ridge",
-      recentlyAcknowledged: true,
-    })).toMatchObject({ message: null, reason: "recent_acknowledgement" });
+    })).toMatchObject({ message: null, reason: "deadline_not_reached" });
+  });
+
+  it("gives any unresolved task a fallback after its own deadline", () => {
+    expect(processingAcknowledgement({
+      body: "What time is closing?",
+      seed: "closing-task",
+      deadlineExpired: true,
+    })).toMatchObject({
+      category: null,
+      reason: "deadline_fallback",
+    });
   });
 
   it("does not repeat the previous acknowledgement", () => {
     const first = processingAcknowledgement({
       body: "Research current mortgage rates",
       seed: "same",
+      deadlineExpired: true,
     });
     const second = processingAcknowledgement({
       body: "Research current mortgage rates",
       seed: "same",
+      deadlineExpired: true,
       previousMessage: first.message,
     });
     expect(second.message).not.toBe(first.message);

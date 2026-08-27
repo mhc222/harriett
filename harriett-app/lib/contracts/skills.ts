@@ -14,6 +14,7 @@ export interface SkillContext {
   channel: AgentChannel;
   aiRunId: string;
   dealId?: string;
+  threadId?: string;
 }
 
 export interface ApprovalContext {
@@ -32,4 +33,3 @@ export interface SkillDefinition<I, O> {
   approvalPolicy: (input: I, context: ApprovalContext) => RequiredApprover | "prohibited";
   execute: (input: I, context: SkillContext) => Promise<O>;
 }
-

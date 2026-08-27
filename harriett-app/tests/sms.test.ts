@@ -213,9 +213,9 @@ describe("validateAgentMediaUrls", () => {
     expect(() => validateAgentMediaUrls("whatsapp", ["http://example.com/property.jpg"])).toThrow(
       /must use HTTPS/
     );
-    expect(() => validateAgentMediaUrls("sms", ["https://example.com/property.jpg"])).toThrow(
-      /WhatsApp only/
-    );
+    expect(validateAgentMediaUrls("sms", ["https://example.com/property.jpg"])).toEqual([
+      "https://example.com/property.jpg",
+    ]);
   });
 });
 

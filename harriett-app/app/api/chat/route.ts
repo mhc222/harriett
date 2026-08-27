@@ -2,13 +2,22 @@ import { tasks } from "@trigger.dev/sdk";
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
+  toUIMessageStream,
   type UIMessage,
 } from "ai";
 import { z } from "zod";
 import { routeConversationMessage } from "@/lib/ai/conversation-router";
+import { processingAcknowledgement } from "@/lib/ai/message-format";
+import { startAgentTurnStream } from "@/lib/ai/runtime";
 import { writeAudit } from "@/lib/audit";
 import { authenticatedContext } from "@/lib/auth-context";
 import { createUserClient } from "@/lib/db/server";
+import {
+  recordConversationEvent,
+  startConversationTrace,
+  updateConversationTrace,
+} from "@/lib/conversation-trace";
+import type { processAgentMemory } from "@/trigger/process-agent-memory";
 import type { processAgentPwa } from "@/trigger/process-agent-pwa";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +72,19 @@ function textFromMessage(message: z.infer<typeof RequestSchema>["messages"][numb
     })
     .join("\n")
     .trim();
+}
+
+function textStreamResponse(originalMessages: UIMessage[], response: string) {
+  const stream = createUIMessageStream({
+    originalMessages,
+    execute: ({ writer }) => {
+      const textId = crypto.randomUUID();
+      writer.write({ type: "text-start", id: textId });
+      writer.write({ type: "text-delta", id: textId, delta: response });
+      writer.write({ type: "text-end", id: textId });
+    },
+  });
+  return createUIMessageStreamResponse({ stream });
 }
 
 export async function POST(request: Request) {
@@ -154,65 +176,224 @@ export async function POST(request: Request) {
     }
   }
   const originalMessages = parsed.data.messages as UIMessage[];
-  if (!immediateResponse) {
-    await tasks.trigger<typeof processAgentPwa>(
-      "process-agent-pwa",
-      { messageId: inbound.id },
-      {
-        idempotencyKey: ["pwa-message", inbound.id],
-        idempotencyKeyTTL: "7d",
-        concurrencyKey: auth.agentId,
+
+  if (immediateResponse) {
+    return textStreamResponse(originalMessages, immediateResponse);
+  }
+
+  if (route.lane === "durable") {
+    const displayedAt = new Date().toISOString();
+    const task = await tasks.trigger<typeof processAgentPwa>("process-agent-pwa", {
+      messageId: inbound.id,
+      displayedAt,
+    }, {
+      idempotencyKey: ["pwa-inbound", inbound.id],
+      idempotencyKeyTTL: "7d",
+      concurrencyKey: auth.agentId,
+    });
+    const acknowledgement = processingAcknowledgement({
+      body,
+      seed: inbound.id,
+      deadlineExpired: true,
+    });
+    await writeAudit(db, {
+      officeId: auth.officeId,
+      actor: "harriett",
+      agentId: auth.agentId,
+      action: "pwa.durable_turn_queued",
+      payload: {
+        inboundMessageId: inbound.id,
+        taskId: task.id,
+        lane: route.lane,
+        intent: route.intent,
+        acknowledgement: acknowledgement.message,
       },
+    });
+    return textStreamResponse(
+      originalMessages,
+      acknowledgement.message ?? "I’m on it. I’ll bring the result back here.",
     );
   }
 
-  const stream = createUIMessageStream({
-    originalMessages,
-    execute: async ({ writer }) => {
-      const textId = crypto.randomUUID();
-      try {
-        if (immediateResponse) {
-          writer.write({ type: "text-start", id: textId });
-          writer.write({ type: "text-delta", id: textId, delta: immediateResponse });
-          writer.write({ type: "text-end", id: textId });
-          return;
-        }
-        let response: string | null = null;
-        for (let attempt = 0; attempt < 240; attempt += 1) {
-          if (request.signal.aborted) return;
-          const [{ data: reply, error: replyError }, { data: turn, error: turnError }] = await Promise.all([
-            db.from("messages")
-              .select("body")
-              .eq("in_reply_to_id", inbound.id)
-              .eq("channel", "pwa")
-              .maybeSingle(),
-            db.from("conversation_turns")
-              .select("status")
-              .eq("inbound_message_id", inbound.id)
-              .maybeSingle(),
-          ]);
-          if (replyError) throw new Error(replyError.message);
-          if (turnError) throw new Error(turnError.message);
-          if (reply?.body) {
-            response = reply.body;
-            break;
-          }
-          if (turn?.status === "failed") {
-            throw new Error("Harriett could not complete that request");
-          }
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-        if (!response) throw new Error("Harriett is still working. Your request is saved, so you can come back to this conversation.");
-        writer.write({ type: "text-start", id: textId });
-        writer.write({ type: "text-delta", id: textId, delta: response });
-        writer.write({ type: "text-end", id: textId });
-      } catch (error) {
-        writer.write({
-          type: "error",
-          errorText: error instanceof Error ? error.message : "Harriett could not complete that request",
-        });
-      }
+  const trace = await startConversationTrace(db, {
+    officeId: auth.officeId,
+    agentId: auth.agentId,
+    threadId: thread.id,
+    inboundMessageId: inbound.id,
+    channel: "pwa",
+    lane: route.lane,
+    intent: route.intent,
+    idempotencyKey: `pwa-message:${inbound.id}`,
+  });
+  await updateConversationTrace(db, {
+    turnId: trace.id,
+    status: "running",
+    timestampField: "first_feedback_at",
+  });
+  await recordConversationEvent(db, {
+    officeId: auth.officeId,
+    turnId: trace.id,
+    event: "turn.routed",
+    payload: {
+      lane: route.lane,
+      intent: route.intent,
+      reasonCode: route.reasonCode,
+      modelTier: route.modelTier,
     },
   });
-  return createUIMessageStreamResponse({ stream });
+  await recordConversationEvent(db, {
+    officeId: auth.officeId,
+    turnId: trace.id,
+    event: "reply.displayed",
+    payload: { channel: "pwa", delivery: "optimistic_typing_indicator" },
+  });
+
+  try {
+    const agentStream = await startAgentTurnStream({
+      officeId: auth.officeId,
+      agentId: auth.agentId,
+      channel: "pwa",
+      message: body,
+      conversationId: thread.id,
+    }, { db }, { abortSignal: request.signal });
+    await updateConversationTrace(db, {
+      turnId: trace.id,
+      status: "running",
+      aiRunId: agentStream.runId,
+    });
+    let firstTokenRecorded = false;
+    const observedStream = agentStream.stream.pipeThrough(new TransformStream({
+      async transform(part, controller) {
+        controller.enqueue(part);
+        if (firstTokenRecorded || part.type !== "text-delta") return;
+        firstTokenRecorded = true;
+        await updateConversationTrace(db, {
+          turnId: trace.id,
+          status: "running",
+          timestampField: "first_token_at",
+        });
+        await recordConversationEvent(db, {
+          officeId: auth.officeId,
+          turnId: trace.id,
+          event: "model.first_token",
+          payload: { channel: "pwa" },
+        });
+      },
+    }));
+    const stream = toUIMessageStream({
+      stream: observedStream,
+      tools: agentStream.tools,
+      originalMessages,
+      onError: () => "Harriett could not complete that request.",
+      onEnd: async ({ isAborted }) => {
+        if (isAborted) {
+          const abortError = new Error("PWA stream was stopped by the agent");
+          await agentStream.fail(abortError);
+          await updateConversationTrace(db, { turnId: trace.id, status: "cancelled" });
+          await recordConversationEvent(db, {
+            officeId: auth.officeId,
+            turnId: trace.id,
+            event: "turn.failed",
+            payload: { reason: "agent_stopped_stream" },
+          });
+          return;
+        }
+        try {
+          const completed = await agentStream.finalize();
+          const { data: outbound, error: outboundError } = await db
+            .from("messages")
+            .insert({
+              office_id: auth.officeId,
+              thread_id: thread.id,
+              agent_id: auth.agentId,
+              direction: "outbound",
+              channel: "pwa",
+              body: completed.response,
+              consumer_facing: false,
+              status: "delivered",
+              in_reply_to_id: inbound.id,
+              ai_run_id: completed.runId,
+              sent_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
+          if (outboundError || !outbound) {
+            throw new Error(`PWA streamed reply persistence failed: ${outboundError?.message}`);
+          }
+          await updateConversationTrace(db, {
+            turnId: trace.id,
+            status: "completed",
+            outboundMessageId: outbound.id,
+            aiRunId: completed.runId,
+            timestampField: "completed_at",
+          });
+          await recordConversationEvent(db, {
+            officeId: auth.officeId,
+            turnId: trace.id,
+            event: "reply.created",
+            payload: { outboundMessageId: outbound.id, channel: "pwa", delivery: "direct_stream" },
+          });
+          await recordConversationEvent(db, {
+            officeId: auth.officeId,
+            turnId: trace.id,
+            event: "turn.completed",
+            payload: { outcome: "direct_stream", intent: agentStream.intent },
+          });
+          await writeAudit(db, {
+            officeId: auth.officeId,
+            actor: "harriett",
+            agentId: auth.agentId,
+            action: "pwa.streamed_reply_completed",
+            payload: {
+              inboundMessageId: inbound.id,
+              outboundMessageId: outbound.id,
+              conversationTurnId: trace.id,
+              aiRunId: completed.runId,
+              lane: route.lane,
+            },
+          });
+          await tasks.trigger<typeof processAgentMemory>("process-agent-memory", {
+            officeId: auth.officeId,
+            agentId: auth.agentId,
+            messageId: inbound.id,
+            aiRunId: completed.runId,
+            channel: "pwa",
+            agentMessage: body,
+            assistantResponse: completed.response,
+          }, {
+            idempotencyKey: ["agent-memory", inbound.id],
+            idempotencyKeyTTL: "7d",
+            concurrencyKey: auth.agentId,
+          });
+        } catch (error) {
+          await agentStream.fail(error);
+          await updateConversationTrace(db, {
+            turnId: trace.id,
+            status: "failed",
+            errorCode: error instanceof Error ? error.name : "unknown",
+          });
+          await recordConversationEvent(db, {
+            officeId: auth.officeId,
+            turnId: trace.id,
+            event: "turn.failed",
+            payload: { error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) },
+          });
+        }
+      },
+    });
+    return createUIMessageStreamResponse({ stream });
+  } catch (error) {
+    await updateConversationTrace(db, {
+      turnId: trace.id,
+      status: "failed",
+      errorCode: error instanceof Error ? error.name : "unknown",
+    });
+    await recordConversationEvent(db, {
+      officeId: auth.officeId,
+      turnId: trace.id,
+      event: "turn.failed",
+      payload: { error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500) },
+    });
+    return Response.json({ error: "Harriett could not start that request" }, { status: 500 });
+  }
 }
