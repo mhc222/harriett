@@ -9,8 +9,11 @@ import {
   FileCheck2,
   FileQuestion,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { DealFactEditor } from "@/components/deal-fact-editor";
+import { DealWorkflowPanel } from "@/components/deal-workflow-panel";
+import { WorkItemStatus } from "@/components/work-item-status";
 import { DealFieldsSchema } from "@/lib/contracts/deal";
 import { createUserClient } from "@/lib/db/server";
 import {
@@ -88,13 +91,17 @@ function displayDate(value: string): string {
 export default async function DealReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = await createUserClient();
-  const [dealResult, documentResult, evidenceResult, reviewResult, checklistResult, eventResult] = await Promise.all([
+  const [dealResult, documentResult, evidenceResult, reviewResult, checklistResult, eventResult, artifactResult, workResult, workflowResult, meetingResult] = await Promise.all([
     db.from("deals").select("id, agent_id, address, city, state, zip, county, status, parsed_fields, created_at, updated_at, agents(name)").eq("id", id).single(),
     db.from("documents").select("id, filename, doc_type, document_type_key, parse_status, created_at").eq("deal_id", id).order("created_at"),
     db.from("deal_field_evidence").select("id, field_name, value, confidence, page_number, excerpt, status, source_type, correction_reason, created_at, document_id").eq("deal_id", id).order("created_at", { ascending: false }),
     db.from("document_rule_reviews").select("id, document_id, rule_key, status, pages, missing_or_unclear_items, evidence, confidence").eq("deal_id", id).order("created_at"),
     db.from("checklist_items").select("id, title, detail, due_date, completed, required").eq("deal_id", id).order("due_date", { ascending: true, nullsFirst: false }),
     db.from("calendar_events").select("id, title, date, type").eq("deal_id", id).order("date"),
+    db.from("artifacts").select("id,kind,title,status,plain_text,created_at").eq("deal_id", id).order("created_at", { ascending: false }).limit(20),
+    db.from("work_items").select("id,title,detail,status,priority,due_at,kind").eq("deal_id", id).not("status", "in", "(completed,cancelled)").order("due_at", { ascending: true, nullsFirst: false }).limit(20),
+    db.from("workflow_runs").select("id,workflow,status,state,created_at,completed_at").eq("deal_id", id).order("created_at", { ascending: false }).limit(20),
+    db.from("meeting_captures").select("id,title,status,occurred_at,summary_artifact_id").eq("deal_id", id).order("occurred_at", { ascending: false }).limit(10),
   ]);
   const deal = dealResult.data;
   if (!deal) notFound();
@@ -133,6 +140,10 @@ export default async function DealReviewPage({ params }: { params: Promise<{ id:
   const incompleteCount = reviewRows.filter((item) => item.status !== "appears_complete").length;
   const checklist = checklistResult.data ?? [];
   const events = eventResult.data ?? [];
+  const artifacts = artifactResult.data ?? [];
+  const openWork = workResult.data ?? [];
+  const workflows = workflowResult.data ?? [];
+  const meetings = meetingResult.data ?? [];
   const agent = Array.isArray(deal.agents) ? deal.agents[0] : deal.agents;
 
   return (
@@ -156,6 +167,11 @@ export default async function DealReviewPage({ params }: { params: Promise<{ id:
         <div><span>Missing required forms</span><strong>{missingCount}</strong></div>
         <div><span>Document issues</span><strong>{incompleteCount}</strong></div>
         <div><span>Rules needing facts</span><strong>{unresolvedCount}</strong></div>
+      </section>
+
+      <section aria-labelledby="workflow-heading">
+        <div className="section-heading"><div><p className="section-kicker">Create the next deliverable</p><h2 id="workflow-heading">Transaction workflows</h2></div><Sparkles size={19} /></div>
+        <DealWorkflowPanel dealId={deal.id} />
       </section>
 
       <div className="transaction-review-grid">
@@ -253,6 +269,21 @@ export default async function DealReviewPage({ params }: { params: Promise<{ id:
             <div className="section-heading compact"><div><p className="section-kicker">Generated work</p><h2 id="work-heading">Checklist and dates</h2></div></div>
             <div className="review-work-summary"><div><strong>{checklist.filter((item) => !item.completed).length}</strong><span>open checklist items</span></div><div><strong>{events.length}</strong><span>calendar dates</span></div></div>
             {events.slice(0, 4).map((event) => <div className="review-date-row" key={event.id}><span>{displayDate(event.date)}</span><strong>{event.title}</strong></div>)}
+          </section>
+
+          <section aria-labelledby="deal-open-work-heading">
+            <div className="section-heading compact"><div><p className="section-kicker">Action queue</p><h2 id="deal-open-work-heading">Open work</h2></div><span className="section-count">{openWork.length}</span></div>
+            {openWork.length ? <div className="compact-list">{openWork.map((item) => <div className="compact-row" key={item.id}><span className="min-w-0 flex-1"><span className="work-title">{item.title}</span><span className="work-meta">{item.kind.replaceAll("_", " ")}{item.due_at ? ` · Due ${new Date(item.due_at).toLocaleDateString()}` : ""}</span></span><WorkItemStatus id={item.id} status={item.status} /></div>)}</div> : <div className="quiet-state compact"><CheckCircle2 size={20} /><p>No open work for this transaction.</p></div>}
+          </section>
+
+          <section aria-labelledby="deal-artifacts-heading">
+            <div className="section-heading compact"><div><p className="section-kicker">Review-ready</p><h2 id="deal-artifacts-heading">Saved work</h2></div><span className="section-count">{artifacts.length}</span></div>
+            {artifacts.length ? <div className="compact-list">{artifacts.map((artifact) => <article className="saved-output-row" key={artifact.id}><div><span className="work-title">{artifact.title}</span><span className="work-meta">{artifact.kind.replaceAll("_", " ")} · {artifact.status.replaceAll("_", " ")}</span></div>{artifact.plain_text && <p>{artifact.plain_text}</p>}</article>)}</div> : <div className="quiet-state compact"><FileQuestion size={20} /><p>Generated drafts and meeting summaries will appear here.</p></div>}
+          </section>
+
+          <section aria-labelledby="deal-history-heading">
+            <div className="section-heading compact"><div><p className="section-kicker">History</p><h2 id="deal-history-heading">Workflow activity</h2></div></div>
+            <div className="compact-list">{workflows.slice(0, 8).map((run) => <div className="compact-row" key={run.id}><span className="work-title">{run.workflow.replaceAll("_", " ")}</span><span className="status-label">{run.status}</span></div>)}{meetings.map((meeting) => <Link href="/meetings" className="compact-row compact-link" key={meeting.id}><span className="work-title">{meeting.title}</span><span className="work-meta">{meeting.status}</span></Link>)}</div>
           </section>
         </aside>
       </div>

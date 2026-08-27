@@ -27,6 +27,7 @@ export default defineConfig({
           "MEMORY_MODE",
           "MEM0_TELEMETRY",
           "MEM0_LLM_MODEL",
+          "AI_TRANSCRIPTION_MODEL",
           "GOOGLE_OAUTH_CLIENT_ID",
           "GOOGLE_OAUTH_REDIRECT_URI",
           "GOOGLE_GMAIL_PUBSUB_TOPIC",

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { authenticatedContext } from "@/lib/auth-context";
 import { createUserClient } from "@/lib/db/server";
+import { WorkItemStatus } from "@/components/work-item-status";
 
 interface PropertyJoin {
   formatted_address: string;
@@ -124,6 +125,7 @@ export default async function TodayPage() {
             <h2 id="attention-heading">Needs attention</h2>
           </div>
           <span className="section-count">{attentionCount}</span>
+          <Link href="/work" className="text-link">View all work</Link>
         </div>
 
         {attentionCount ? (
@@ -156,6 +158,7 @@ export default async function TodayPage() {
                   <span className="work-meta">{item.detail ?? (item.due_at ? `Due ${new Date(item.due_at).toLocaleDateString()}` : "Open work")}</span>
                 </span>
                 <span className={`priority-label priority-${item.priority}`}>{item.priority}</span>
+                <WorkItemStatus id={item.id} status={item.status} />
               </div>
             ))}
           </div>
