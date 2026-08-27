@@ -1,4 +1,4 @@
--- 0036: Minimal, tenant-scoped conversational focus.
+-- Minimal, tenant-scoped conversational focus.
 --
 -- This table stores references to authoritative records. Deal facts, artifact
 -- URLs, action status, and workflow status remain in their domain tables.
