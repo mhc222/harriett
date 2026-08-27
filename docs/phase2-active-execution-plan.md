@@ -31,12 +31,19 @@ This is the active build plan. Contract, scope, and meeting documents remain his
 - Marketing generation excludes consumer names and private contract terms.
 - Photo coordination performs no automatic external action.
 - Document output stays an internal draft for human or broker review.
-- Database migration `20260827020548_meetings_and_deal_workflows.sql` is applied before these routes are enabled in production.
+- Production schema migrations for conversation context, direct PWA policies, meetings, and deal workflows are applied before these routes are promoted.
 
 ## Deployment order
 
-1. Merge the conversational runtime after migrations `0036` and `0037` are ready.
-2. Apply migration `20260827020548_meetings_and_deal_workflows.sql`.
+1. Merge the conversational runtime after migrations `20260827021843_conversation_context.sql` and `20260827021851_direct_pwa_runtime_policies.sql` are ready.
+2. Apply migrations `20260827021858_meetings_and_deal_workflows.sql` and `20260827022031_harden_pwa_context_access.sql`.
 3. Deploy the operating workflow branch to preview and complete a smoke test with a test transaction.
 4. Merge and promote the verified preview.
 5. Schedule the deferred cross-channel acceptance run separately.
+
+## Completed August 26
+
+- The Vercel Git projects now use the correct monorepo roots, and both the demo and Phase 2 app previews build successfully.
+- The four production schema migrations above are applied and verified on the Harriett Supabase project.
+- Anonymous access to the direct PWA completion function and conversation context is removed. The PWA function remains available only to signed-in callers and validates tenant ownership inside the transaction.
+- PR 1 and PR 2 are mergeable with CI and Vercel checks passing.

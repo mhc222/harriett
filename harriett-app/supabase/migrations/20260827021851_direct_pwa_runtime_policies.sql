@@ -1,4 +1,4 @@
--- 0037: Narrow RLS write paths for authenticated, directly streamed PWA turns.
+-- Narrow RLS write paths for authenticated, directly streamed PWA turns.
 --
 -- RLS constrains every record to the authenticated agent and the PWA channel.
 
