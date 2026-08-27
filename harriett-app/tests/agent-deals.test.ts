@@ -15,6 +15,10 @@ describe("formatAgentDealPortfolio", () => {
         closingDate: null,
         publicListingUrl: "https://www.pritchett-moore.com/properties/175589/details",
         primaryImageUrl: null,
+        facebookArtifactId: "33333333-3333-4333-8333-333333333333",
+        privateReviewUrl: "https://harriett.example/social?draft=33333333-3333-4333-8333-333333333333",
+        liveFacebookUrl: "https://www.facebook.com/pritchettmoore/posts/123",
+        facebookArtifactStatus: "published",
       },
       {
         id: "22222222-2222-4222-8222-222222222222",
@@ -27,6 +31,10 @@ describe("formatAgentDealPortfolio", () => {
         closingDate: "2026-06-05",
         publicListingUrl: null,
         primaryImageUrl: null,
+        facebookArtifactId: null,
+        privateReviewUrl: null,
+        liveFacebookUrl: null,
+        facebookArtifactStatus: null,
       },
     ], new Date("2026-08-26T12:00:00Z"));
 

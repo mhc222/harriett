@@ -104,6 +104,7 @@ interface AgentRow {
 
 export type AgentMessagingChannel = "sms" | "whatsapp";
 export type DeliveryStatus = "queued" | "sent" | "delivered" | "failed";
+export type MessageAttachmentKind = "image" | "document" | "audio" | "video" | "other";
 
 export function localDeliveryStatus(twilioStatus: string): DeliveryStatus {
   if (twilioStatus === "delivered" || twilioStatus === "read") return "delivered";
@@ -134,13 +135,10 @@ export function resolveDeliveryStatus(
 
 export function validateAgentMediaUrls(channel: AgentMessagingChannel, mediaUrls?: string[]): string[] {
   if (!mediaUrls?.length) return [];
-  if (channel !== "whatsapp") {
-    throw new Error("media attachments are currently enabled for WhatsApp only");
-  }
-  if (mediaUrls.length > 10) throw new Error("a WhatsApp message can include at most 10 media URLs");
+  if (mediaUrls.length > 10) throw new Error(`${channel.toUpperCase()} can include at most 10 media URLs`);
   return mediaUrls.map((value) => {
     const url = new URL(value);
-    if (url.protocol !== "https:") throw new Error("WhatsApp media URLs must use HTTPS");
+    if (url.protocol !== "https:") throw new Error(`${channel.toUpperCase()} media URLs must use HTTPS`);
     return url.toString();
   });
 }
@@ -232,6 +230,7 @@ export async function sendAgentMessage(
     dealId?: string;
     inReplyToId?: string;
     mediaUrls?: string[];
+    mediaKind?: MessageAttachmentKind;
   }
 ): Promise<{ messageId: string; providerMessageId?: string; dryRun?: boolean }> {
   const { data: agent, error } = await db
@@ -300,7 +299,7 @@ export async function sendAgentMessage(
       mediaUrls.map((url) => ({
         office_id: agent.office_id,
         message_id: msg!.id,
-        kind: "image",
+        kind: opts.mediaKind ?? "image",
         source: "external",
         url,
       })),

@@ -1,6 +1,7 @@
 import { schemaTask, tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { runAgentTurn } from "@/lib/ai/runtime";
+import { routeConversationMessage } from "@/lib/ai/conversation-router";
 import { writeAudit } from "@/lib/audit";
 import { resolveDeterministicConversationResponse } from "@/lib/deterministic-conversation";
 import { createServiceClient } from "@/lib/db/server";
@@ -16,6 +17,7 @@ import {
   updateConversationTrace,
 } from "@/lib/conversation-trace";
 import type { processAgentMemory } from "@/trigger/process-agent-memory";
+import { focusConversationContext } from "@/lib/conversation-context";
 
 export const processAgentPwa = schemaTask({
   id: "process-agent-pwa",
@@ -46,6 +48,15 @@ export const processAgentPwa = schemaTask({
       idempotencyKey: `pwa-message:${messageId}`,
       state: { inboundMessageId: messageId, channel: "pwa" },
     });
+    await focusConversationContext(db, {
+      officeId: inbound.office_id,
+      agentId: inbound.agent_id,
+      threadId: inbound.thread_id ?? undefined,
+      patch: {
+        activeWorkflowRunId: workflow.id,
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      },
+    });
 
     let turnId: string | undefined;
     try {
@@ -54,7 +65,8 @@ export const processAgentPwa = schemaTask({
         agentId: inbound.agent_id,
         body: inbound.body,
       });
-      const lane = deterministic?.lane ?? "standard";
+      const routed = routeConversationMessage(inbound.body);
+      const lane = deterministic?.lane ?? routed.lane;
       const trace = await startConversationTrace(db, {
         officeId: inbound.office_id,
         agentId: inbound.agent_id,
@@ -62,7 +74,7 @@ export const processAgentPwa = schemaTask({
         inboundMessageId: messageId,
         channel: "pwa",
         lane,
-        intent: deterministic?.intent,
+        intent: deterministic?.intent ?? routed.intent,
         idempotencyKey: `pwa-message:${messageId}`,
       });
       turnId = trace.id;
@@ -91,7 +103,7 @@ export const processAgentPwa = schemaTask({
         event: "turn.routed",
         payload: deterministic
           ? { lane, intent: deterministic.intent, reasonCode: deterministic.reasonCode }
-          : { lane, intent: "classify_with_context", reasonCode: "requires_contextual_classification" },
+          : { lane, intent: routed.intent, reasonCode: routed.reasonCode },
       });
 
       let response: string;
@@ -104,6 +116,7 @@ export const processAgentPwa = schemaTask({
           agentId: inbound.agent_id,
           channel: "pwa",
           message: inbound.body,
+          conversationId: inbound.thread_id ?? undefined,
         }, { db });
         response = result.response;
         aiRunId = result.runId;
@@ -219,6 +232,13 @@ export const processAgentPwa = schemaTask({
         inboundMessageId: messageId,
       });
       throw error;
+    } finally {
+      await focusConversationContext(db, {
+        officeId: inbound.office_id,
+        agentId: inbound.agent_id,
+        threadId: inbound.thread_id ?? undefined,
+        patch: { activeWorkflowRunId: null },
+      });
     }
   },
 });

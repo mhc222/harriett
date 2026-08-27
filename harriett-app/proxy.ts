@@ -38,6 +38,7 @@ export async function proxy(request: NextRequest) {
     pathname === "/sms" ||
     pathname.startsWith("/sms-terms") ||
     pathname.startsWith("/privacy") ||
+    pathname === "/api/media/harriett-contact" ||
     pathname.startsWith("/api/webhooks");
 
   if (!user && !isPublic) {

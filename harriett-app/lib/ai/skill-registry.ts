@@ -29,6 +29,7 @@ import {
   AgentDealSearchOutputSchema,
   searchAgentDeals,
 } from "@/lib/agent-deals";
+import { focusConversationContext } from "@/lib/conversation-context";
 
 export function defineSkill<I, O>(definition: SkillDefinition<I, O>): SkillDefinition<I, O> {
   return definition;
@@ -81,12 +82,26 @@ async function runSkill<I, O>(
 const searchDealsSkill = defineSkill({
   name: "search_deals",
   version: "1.0.0",
-  description: "Find the agent's active or historical deals by address or status, including the verified official listing URL and primary listing image when available.",
+  description: "Find the agent's active or historical deals by address or status. Returns the verified official listing URL, Harriett's private Facebook draft review URL, the live Facebook URL, and the primary listing image as distinct fields when available.",
   inputSchema: AgentDealSearchInputSchema,
   outputSchema: AgentDealSearchOutputSchema,
   risk: "read" as SkillRisk,
   approvalPolicy: () => "none",
-  execute: (input, context) => searchAgentDeals(context.db, context, input),
+  execute: async (input, context) => {
+    const result = await searchAgentDeals(context.db, context, input);
+    if (result.deals.length === 1) {
+      await focusConversationContext(context.db, {
+        officeId: context.officeId,
+        agentId: context.agentId,
+        threadId: context.threadId,
+        patch: {
+          activeDealId: result.deals[0].id,
+          expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        },
+      });
+    }
+    return result;
+  },
 });
 
 const CreateFacebookDraftInput = z.object({
@@ -137,6 +152,17 @@ const createFacebookDraftSkill = defineSkill({
       shareMode: input.shareMode,
       dealId: deal.id,
       notes: input.notes,
+    });
+    await focusConversationContext(context.db, {
+      officeId: context.officeId,
+      agentId: context.agentId,
+      threadId: context.threadId,
+      patch: {
+        activeDealId: deal.id,
+        activeArtifactId: draft.artifactId,
+        pendingActionId: null,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+      },
     });
     return { ...draft, published: false as const };
   },
@@ -334,6 +360,16 @@ const proposeActionSkill = defineSkill({
         { idempotencyKey: ["google-action", data.id], idempotencyKeyTTL: "30d" }
       );
     }
+    await focusConversationContext(context.db, {
+      officeId: context.officeId,
+      agentId: context.agentId,
+      threadId: context.threadId,
+      patch: {
+        activeDealId: context.dealId,
+        pendingActionId: data.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString(),
+      },
+    });
     return {
       actionId: data.id,
       status,
@@ -418,7 +454,7 @@ const decideActionSkill = defineSkill({
       if (error || !data) throw new Error("there is no pending Google action to decide");
       actionRequestId = data.id;
     }
-    return decideGoogleAction({
+    const result = await decideGoogleAction({
       db: context.db,
       officeId: context.officeId,
       actorAgentId: context.agentId,
@@ -427,6 +463,13 @@ const decideActionSkill = defineSkill({
       decision: input.decision,
       reason: input.reason,
     });
+    await focusConversationContext(context.db, {
+      officeId: context.officeId,
+      agentId: context.agentId,
+      threadId: context.threadId,
+      patch: { pendingActionId: null },
+    });
+    return result;
   },
 });
 

@@ -21,10 +21,21 @@ export const AgentDealSearchOutputSchema = z.object({
     closingDate: z.string().nullable(),
     publicListingUrl: z.string().url().nullable(),
     primaryImageUrl: z.string().url().nullable(),
+    facebookArtifactId: z.string().uuid().nullable(),
+    privateReviewUrl: z.string().url().nullable(),
+    liveFacebookUrl: z.string().url().nullable(),
+    facebookArtifactStatus: z.string().nullable(),
   })),
 });
 export type AgentDealSearchOutput = z.infer<typeof AgentDealSearchOutputSchema>;
 export type AgentDealSummary = AgentDealSearchOutput["deals"][number];
+
+function appBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "")
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000");
+}
 
 export async function searchAgentDeals(
   db: SupabaseClient,
@@ -43,6 +54,33 @@ export async function searchAgentDeals(
   if (input.query) query = query.ilike("address", `%${input.query}%`);
   const { data, error } = await query;
   if (error) throw new Error(`deal search failed: ${error.message}`);
+  const dealIds = (data ?? []).map((deal) => deal.id);
+  const artifactsByDeal = new Map<string, {
+    id: string;
+    status: string;
+    content: Record<string, unknown>;
+  }>();
+  if (dealIds.length) {
+    const { data: artifactRows, error: artifactError } = await db
+      .from("artifacts")
+      .select("id,deal_id,status,content,updated_at")
+      .eq("office_id", context.officeId)
+      .eq("agent_id", context.agentId)
+      .eq("kind", "social_post")
+      .in("deal_id", dealIds)
+      .order("updated_at", { ascending: false });
+    if (artifactError) throw new Error(`deal artifact search failed: ${artifactError.message}`);
+    for (const artifact of artifactRows ?? []) {
+      if (!artifact.deal_id || artifactsByDeal.has(artifact.deal_id)) continue;
+      const content = z.record(z.string(), z.unknown()).safeParse(artifact.content);
+      if (!content.success || content.data.provider !== "facebook") continue;
+      artifactsByDeal.set(artifact.deal_id, {
+        id: artifact.id,
+        status: artifact.status,
+        content: content.data,
+      });
+    }
+  }
   return AgentDealSearchOutputSchema.parse({
     deals: (data ?? []).map((deal) => {
       const property = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
@@ -50,6 +88,11 @@ export async function searchAgentDeals(
       const listing = PublicListingMetadataSchema.safeParse(
         facts.success ? facts.data.facts.publicListing : null,
       );
+      const facebookArtifact = artifactsByDeal.get(deal.id) ?? null;
+      const liveFacebookUrl = facebookArtifact
+        && typeof facebookArtifact.content.external_permalink === "string"
+        ? facebookArtifact.content.external_permalink
+        : null;
       return {
         id: deal.id,
         address: deal.address,
@@ -61,6 +104,12 @@ export async function searchAgentDeals(
         closingDate: deal.closing_date,
         publicListingUrl: listing.success ? listing.data.url : null,
         primaryImageUrl: listing.success ? listing.data.primaryImageUrl : null,
+        facebookArtifactId: facebookArtifact?.id ?? null,
+        privateReviewUrl: facebookArtifact
+          ? `${appBaseUrl()}/social?draft=${facebookArtifact.id}`
+          : null,
+        liveFacebookUrl,
+        facebookArtifactStatus: facebookArtifact?.status ?? null,
       };
     }),
   });

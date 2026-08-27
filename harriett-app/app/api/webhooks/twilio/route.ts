@@ -11,12 +11,16 @@ import type { processAgentSms } from "@/trigger/process-agent-sms";
 import {
   type AgentMessagingChannel,
   detectConsentIntent,
+  messageDeliveryMode,
   twilioSendingEnabled,
   validTwilioSignature,
   STOP_CONFIRMATION,
   HELP_RESPONSE,
   START_CONFIRMATION,
 } from "@/lib/sms";
+
+const RESPONSE_FEEDBACK_DEADLINE_MS = 2_500;
+const RESPONSE_CHECK_INTERVAL_MS = 150;
 
 function twiml(message?: string, channel: AgentMessagingChannel = "sms"): NextResponse {
   const reply = channel === "whatsapp" || twilioSendingEnabled() ? message : undefined;
@@ -46,6 +50,34 @@ function attachmentKind(mimeType: string): "image" | "document" | "audio" | "vid
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType === "application/pdf") return "document";
   return "other";
+}
+
+async function waitForAcceptedReply(
+  db: ReturnType<typeof createServiceClient>,
+  inboundMessageId: string,
+  channel: AgentMessagingChannel,
+  deadlineAt: number
+): Promise<boolean> {
+  const deliveryMode = messageDeliveryMode(channel);
+  while (Date.now() < deadlineAt) {
+    const { data, error } = await db
+      .from("messages")
+      .select("status, provider_message_id")
+      .eq("in_reply_to_id", inboundMessageId)
+      .maybeSingle();
+    if (error) throw new Error(`reply deadline lookup failed: ${error.message}`);
+    if (data && (
+      deliveryMode !== "live"
+      || Boolean(data.provider_message_id)
+      || ["sent", "delivered"].includes(data.status)
+    )) {
+      return true;
+    }
+    const remaining = deadlineAt - Date.now();
+    if (remaining <= 0) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(RESPONSE_CHECK_INTERVAL_MS, remaining)));
+  }
+  return false;
 }
 
 // Inbound Twilio messaging webhook. Service client is allowed here (webhook handler),
@@ -173,14 +205,43 @@ export async function POST(request: Request) {
     return twiml(undefined, channel);
   }
 
+  // Keep each provider channel on a stable thread so references such as
+  // "post it" and "delete it" have an explicit conversation scope.
+  const { data: existingThread, error: threadLookupError } = await db
+    .from("threads")
+    .select("id")
+    .eq("office_id", agent.office_id)
+    .eq("agent_id", agent.id)
+    .eq("channel", channel)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (threadLookupError) {
+    return NextResponse.json({ error: "conversation lookup failed" }, { status: 503 });
+  }
+  let thread = existingThread;
+  if (!thread) {
+    const createdThread = await db.from("threads").insert({
+      office_id: agent.office_id,
+      agent_id: agent.id,
+      channel,
+      subject: "Harriett conversation",
+    }).select("id").single();
+    if (createdThread.error || !createdThread.data) {
+      return NextResponse.json({ error: "conversation creation failed" }, { status: 500 });
+    }
+    thread = createdThread.data;
+  }
+
   // Ordinary inbound message: store it, then let the durable task generate
-  // and send the reply after this webhook has returned.
+  // and send the reply.
   const messageSid = params.MessageSid ?? null;
   const { data: msg, error: messageError } = await db
     .from("messages")
     .insert({
       office_id: agent.office_id,
       agent_id: agent.id,
+      thread_id: thread.id,
       direction: "inbound",
       channel,
       body,
@@ -269,57 +330,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const acknowledgementCooldownStart = new Date(Date.now() - 90_000).toISOString();
-  const acknowledgementHistoryStart = new Date(Date.now() - 10 * 60_000).toISOString();
-  const { data: acknowledgementHistory, error: acknowledgementLookupError } = await db
-    .from("audit_log")
-    .select("payload, created_at")
-    .eq("office_id", agent.office_id)
-    .eq("agent_id", agent.id)
-    .eq("action", `${channel}.processing_acknowledgement_decided`)
-    .gte("created_at", acknowledgementHistoryStart)
-    .order("created_at", { ascending: false })
-    .limit(10);
-  if (acknowledgementLookupError) {
-    return NextResponse.json({ error: "acknowledgement history unavailable" }, { status: 503 });
-  }
-  const priorDecisions = (acknowledgementHistory ?? []).map((entry) => ({
-    createdAt: entry.created_at,
-    payload: entry.payload && typeof entry.payload === "object"
-      ? entry.payload as Record<string, unknown>
-      : null,
-  }));
-  const lastSentDecision = priorDecisions.find((entry) => entry.payload?.sent === true);
-  const previousMessage = typeof lastSentDecision?.payload?.message === "string"
-    ? lastSentDecision.payload.message
-    : null;
-  const recentlyAcknowledged = priorDecisions.some((entry) => (
-    entry.createdAt >= acknowledgementCooldownStart && entry.payload?.sent === true
-  ));
-  const acknowledgement = processingAcknowledgement({
-    body,
-    seed: messageSid ?? msg.id,
-    hasAttachments: mediaCount > 0,
-    recentlyAcknowledged,
-    previousMessage,
-  });
-  await writeAudit(db, {
-    officeId: agent.office_id,
-    actor: "harriett",
-    agentId: agent.id,
-    action: `${channel}.processing_acknowledgement_decided`,
-    payload: {
-      inboundMessageId: msg.id,
-      sent: acknowledgement.message !== null,
-      message: acknowledgement.message,
-      category: acknowledgement.category,
-      reason: acknowledgement.reason,
-      delivery: acknowledgement.message ? "twiml" : null,
-      cooldownSeconds: 90,
-    },
-  });
-
-  await tasks.trigger<typeof processAgentSms>(
+  const feedbackDeadlineAt = Date.now() + RESPONSE_FEEDBACK_DEADLINE_MS;
+  const task = await tasks.trigger<typeof processAgentSms>(
     "process-agent-sms",
     { messageId: msg.id },
     {
@@ -328,6 +340,48 @@ export async function POST(request: Request) {
       concurrencyKey: agent.id,
     }
   );
+
+  let replyAccepted = false;
+  try {
+    replyAccepted = await waitForAcceptedReply(db, msg.id, channel, feedbackDeadlineAt);
+  } catch (error) {
+    await writeAudit(db, {
+      officeId: agent.office_id,
+      actor: "system",
+      agentId: agent.id,
+      action: `${channel}.reply_deadline_check_failed`,
+      payload: {
+        inboundMessageId: msg.id,
+        taskId: task.id,
+        error: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      },
+    });
+  }
+
+  const acknowledgement = replyAccepted
+    ? { message: null, category: null, reason: "reply_accepted_before_deadline" as const }
+    : processingAcknowledgement({
+        body,
+        seed: messageSid ?? msg.id,
+        hasAttachments: mediaCount > 0,
+        deadlineExpired: true,
+      });
+  await writeAudit(db, {
+    officeId: agent.office_id,
+    actor: "harriett",
+    agentId: agent.id,
+    action: `${channel}.processing_acknowledgement_decided`,
+    payload: {
+      inboundMessageId: msg.id,
+      taskId: task.id,
+      sent: acknowledgement.message !== null,
+      message: acknowledgement.message,
+      category: acknowledgement.category,
+      reason: acknowledgement.reason,
+      delivery: acknowledgement.message ? "twiml" : null,
+      deadlineMs: RESPONSE_FEEDBACK_DEADLINE_MS,
+    },
+  });
 
   return twiml(acknowledgement.message ?? undefined, channel);
 }

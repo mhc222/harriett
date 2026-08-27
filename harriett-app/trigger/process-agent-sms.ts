@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import {
   formatAgentMessageForChannel,
   formatFacebookDraftForWhatsApp,
+  isContactCardCommand,
   isFacebookDeleteCommand,
   isFacebookDraftCommand,
   isFacebookPublishApproval,
@@ -16,6 +17,8 @@ import {
   deleteLatestFacebookPostFromConversation,
 } from "@/lib/facebook-conversation";
 import { sendAgentMessage, messageDeliveryMode, type AgentMessagingChannel } from "@/lib/sms";
+import { harriettContactCardUrl } from "@/lib/contact-card";
+import { focusConversationContext } from "@/lib/conversation-context";
 import {
   completeWorkflowTrace,
   failWorkflowTrace,
@@ -82,6 +85,15 @@ export const processAgentSms = schemaTask({
       version: "1.0.0",
       idempotencyKey: `agent-message:${messageId}`,
       state: { inboundMessageId: messageId, channel },
+    });
+    await focusConversationContext(db, {
+      officeId: inbound.office_id,
+      agentId: inbound.agent_id,
+      threadId: inbound.thread_id ?? undefined,
+      patch: {
+        activeWorkflowRunId: workflow.id,
+        expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+      },
     });
     let replySent = false;
     let aiRunId: string | undefined;
@@ -151,6 +163,40 @@ export const processAgentSms = schemaTask({
         };
       }
 
+      if (isContactCardCommand(inbound.body)) {
+        const sent = await sendAgentMessage(db, {
+          agentId: inbound.agent_id,
+          channel,
+          dealId: inbound.deal_id ?? undefined,
+          inReplyToId: messageId,
+          body: "Here’s my contact card. Save it so you’ll always know it’s me.",
+          mediaUrls: [harriettContactCardUrl()],
+          mediaKind: "other",
+        });
+        replySent = true;
+        await writeAudit(db, {
+          officeId: inbound.office_id,
+          actor: "harriett",
+          agentId: inbound.agent_id,
+          dealId: inbound.deal_id ?? undefined,
+          action: `${channel}.contact_card_sent`,
+          payload: {
+            inboundMessageId: messageId,
+            outboundMessageId: sent.messageId,
+            providerMessageId: sent.providerMessageId ?? null,
+            dryRun: sent.dryRun ?? false,
+          },
+        });
+        await completeWorkflowTrace(db, inbound.office_id, workflow.id, {
+          inboundMessageId: messageId,
+          channel,
+          outboundMessageId: sent.messageId,
+          providerMessageId: sent.providerMessageId ?? null,
+          outcome: "contact_card_sent",
+        });
+        return { sent: true, ...sent, contactCardSent: true, workflowRunId: workflow.id };
+      }
+
       const { data: lastOutbound } = await db
         .from("messages")
         .select("body,created_at")
@@ -174,6 +220,16 @@ export const processAgentSms = schemaTask({
             officeId: inbound.office_id,
             agentId: inbound.agent_id,
           });
+          await focusConversationContext(db, {
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+            threadId: inbound.thread_id ?? undefined,
+            patch: {
+              activeArtifactId: deletion.artifactId,
+              pendingActionId: deletion.actionRequestId,
+              expiresAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+            },
+          });
           if (deletion.status !== "completed") {
             const deleted = await tasks.triggerAndWait<typeof executeFacebookAction>(
               "execute-facebook-action",
@@ -191,6 +247,12 @@ export const processAgentSms = schemaTask({
               throw new Error("Meta did not confirm the Facebook deletion");
             }
           }
+          await focusConversationContext(db, {
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+            threadId: inbound.thread_id ?? undefined,
+            patch: { pendingActionId: null },
+          });
           const sent = await sendAgentMessage(db, {
             agentId: inbound.agent_id,
             channel,
@@ -259,6 +321,16 @@ export const processAgentSms = schemaTask({
             officeId: inbound.office_id,
             agentId: inbound.agent_id,
           });
+          await focusConversationContext(db, {
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+            threadId: inbound.thread_id ?? undefined,
+            patch: {
+              activeArtifactId: approval.artifactId,
+              pendingActionId: approval.actionRequestId,
+              expiresAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+            },
+          });
           let permalink = approval.existingPermalink;
           let verificationStatus: "graph_confirmed" | "not_visible" | "unverified" | undefined;
           if (approval.status !== "completed") {
@@ -272,6 +344,12 @@ export const processAgentSms = schemaTask({
             permalink = parsed.success ? parsed.data.permalinkUrl ?? permalink : permalink;
             verificationStatus = parsed.success ? parsed.data.verificationStatus : undefined;
           }
+          await focusConversationContext(db, {
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+            threadId: inbound.thread_id ?? undefined,
+            patch: { pendingActionId: null },
+          });
           const replyBody = verificationStatus === "graph_confirmed" && permalink
             ? `Facebook confirmed the post on ${approval.pageName}.\n\n${permalink}`
             : `Meta accepted the post to ${approval.pageName}, but I could not confirm that it is visible yet. Check Recent posts in Harriett before sharing it.`;
@@ -349,6 +427,17 @@ export const processAgentSms = schemaTask({
             officeId: inbound.office_id,
             agentId: inbound.agent_id,
             message: inbound.body,
+          });
+          await focusConversationContext(db, {
+            officeId: inbound.office_id,
+            agentId: inbound.agent_id,
+            threadId: inbound.thread_id ?? undefined,
+            patch: {
+              activeDealId: draft.dealId,
+              activeArtifactId: draft.artifactId,
+              pendingActionId: null,
+              expiresAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+            },
           });
           const replyBody = formatFacebookDraftForWhatsApp(draft);
           const mediaUrls = draft.primaryImageUrl ? [draft.primaryImageUrl] : undefined;
@@ -529,6 +618,13 @@ export const processAgentSms = schemaTask({
         throw new AggregateError(traceErrors, "agent message processing and trace writes failed");
       }
       throw error;
+    } finally {
+      await focusConversationContext(db, {
+        officeId: inbound.office_id,
+        agentId: inbound.agent_id,
+        threadId: inbound.thread_id ?? undefined,
+        patch: { activeWorkflowRunId: null },
+      });
     }
   },
 });

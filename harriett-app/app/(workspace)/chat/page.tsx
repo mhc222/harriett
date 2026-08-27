@@ -30,6 +30,7 @@ export default async function ChatPage() {
 
   return (
     <HarriettChat
+      agentId={auth.agentId}
       agentName={agent?.name?.split(" ")[0] ?? "there"}
       initialMessages={initialMessages}
     />
